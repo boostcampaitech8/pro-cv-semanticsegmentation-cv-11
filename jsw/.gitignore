@@ -1,0 +1,13 @@
+# .gitignore
+.env
+ass/
+shared_file/
+**/checkpoints/
+**/outputs/
+**/wandb/
+
+scripts/EDA/visualizer.ipynb
+scripts/EDA/visualizer_1.ipynb
+scripts/EDA/visualizer_2.ipynb
+scripts/EDA/EDA.ipynb
+baseline/baseline_FCN.ipynb

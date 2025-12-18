@@ -65,7 +65,7 @@ checkpoint:
 # =========================
 wandb:
   use: true
-  api_key: "0429f581dee55eedaae87afe43b791d77d58560e"
+  api_key: "내 api"
   entity: cv_11
   project: cv-11-SEG
   name: khs_fcn_adamw_epoch30

@@ -79,3 +79,65 @@ def collect_test_pngs(image_root):
         if os.path.splitext(fname)[1].lower() == ".png"
     }
     return sorted(pngs)
+
+def logits_to_preds(logits, cfg):
+    task = cfg["model"].get("task_type", "multilabel")
+
+    if task == "multilabel":
+        thr = float(cfg["train"].get("threshold", 0.5))
+        probs = torch.sigmoid(logits)
+        return (probs > thr).long()
+
+    elif task == "multiclass":
+        return logits.argmax(dim=1)
+
+    else:
+        raise ValueError(f"Unknown task_type: {task}")
+
+def multiclass_dice_coef(preds, targets, num_classes, eps=1e-5):
+    """
+    preds:   (B, H, W)           class index
+    targets: (B, H, W) OR (B, C, H, W)
+    """
+
+    # 🔥 핵심: target이 one-hot이면 class index로 변환
+    if targets.dim() == 4:
+        # (B, C, H, W) -> (B, H, W)
+        targets = targets.argmax(dim=1)
+
+    dice_scores = []
+
+    for c in range(num_classes):
+        pred_c = (preds == c).float()
+        target_c = (targets == c).float()
+
+        intersection = (pred_c * target_c).sum(dim=(1, 2))
+        union = pred_c.sum(dim=(1, 2)) + target_c.sum(dim=(1, 2))
+
+        dice = (2 * intersection + eps) / (union + eps)
+        dice_scores.append(dice.mean())
+
+    return torch.stack(dice_scores).mean()
+
+def multiclass_dice_per_class(preds, targets, num_classes, eps=1e-5):
+    """
+    return: (C,) tensor  — class-wise dice
+    """
+
+    if targets.dim() == 4:
+        targets = targets.argmax(dim=1)
+
+    dices = []
+
+    for c in range(num_classes):
+        pred_c = (preds == c).float()
+        target_c = (targets == c).float()
+
+        intersection = (pred_c * target_c).sum(dim=(1, 2))
+        union = pred_c.sum(dim=(1, 2)) + target_c.sum(dim=(1, 2))
+
+        dice = (2 * intersection + eps) / (union + eps)
+        dices.append(dice.mean())
+
+    return torch.stack(dices)  # (C,)
+

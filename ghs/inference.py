@@ -59,7 +59,7 @@ class XRayInferenceDataset(Dataset):
 
 # ---------------- Inference ----------------
 @torch.no_grad()
-def run_inference(model, loader, thr):
+def run_inference(model, loader):
     model.eval()
     rles = []
     filename_and_class = []
@@ -68,17 +68,21 @@ def run_inference(model, loader, thr):
         images = images.cuda(non_blocking=True)
 
         logits = model(images)["out"]
-        logits = F.interpolate(logits, size=(2048, 2048), mode="bilinear")
+        logits = F.interpolate(
+            logits, size=(2048, 2048), mode="bilinear", align_corners=False
+        )
 
-        probs = torch.sigmoid(logits).cpu().numpy()
+        preds = logits.argmax(dim=1).cpu().numpy()  # (B, H, W)
 
-        for prob, img_name in zip(probs, image_names):
-            for cls_idx, cls_mask in enumerate(prob):
-                rle = encode_mask_to_rle(cls_mask > thr)
+        for pred, img_name in zip(preds, image_names):
+            for cls_idx in range(len(CLASSES)):
+                cls_mask = (pred == cls_idx)
+                rle = encode_mask_to_rle(cls_mask)
                 rles.append(rle)
                 filename_and_class.append(f"{CLASSES[cls_idx]}_{img_name}")
 
     return rles, filename_and_class
+
 
 
 # ---------------- Main ----------------
@@ -128,7 +132,7 @@ def main():
     model.load_state_dict(torch.load(CKPT_PATH, map_location=device))
 
     # ---- inference ----
-    rles, filename_and_class = run_inference(model, test_loader, THR)
+    rles, filename_and_class = run_inference(model, test_loader)
 
     # ---- CSV ----
     classes, filenames = zip(*[x.split("_", 1) for x in filename_and_class])

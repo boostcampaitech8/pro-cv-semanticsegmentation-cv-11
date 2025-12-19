@@ -10,7 +10,7 @@ import wandb
 import datetime
 
 from torch.optim.lr_scheduler import CosineAnnealingLR
-from losses import BCEDiceLoss
+from loss import build_loss
 from datasets import XRayDataset
 from models import build_model
 from utils import (
@@ -18,6 +18,9 @@ from utils import (
     dice_coef,
     collect_png_json_pairs,
     load_yaml,
+    logits_to_preds,
+    multiclass_dice_coef,
+    multiclass_dice_per_class  
 )
 
 # ---------------- CLASSES (고정) ----------------
@@ -36,21 +39,6 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, required=True, help="path to config yaml")
     return parser.parse_args()
-
-
-def build_loss(cfg):
-    loss_name = cfg["loss"]["name"]
-
-    if loss_name == "BCEWithLogitsLoss":
-        return nn.BCEWithLogitsLoss()
-
-    elif loss_name == "BCEDiceLoss":
-        bce_weight = float(cfg["loss"].get("bce_weight", 0.5))
-        return BCEDiceLoss(bce_weight=bce_weight)
-
-    else:
-        raise ValueError(f"Unsupported loss: {loss_name}")
-
 
 def build_optimizer(cfg, model):
     opt_name = cfg["optimizer"]["name"].lower()
@@ -84,27 +72,53 @@ def build_scheduler(cfg, optimizer):
 
 
 @torch.no_grad()
-def validate(model, val_loader, criterion, thr):
+def validate(model, val_loader, criterion, cfg):
     model.eval()
     dices = []
     total_loss = 0.0
 
+    num_classes = cfg["model"]["num_classes"]
+    dices_per_class = []
+
     for images, masks in val_loader:
-        images, masks = images.cuda(non_blocking=True), masks.cuda(non_blocking=True)
+        images = images.cuda(non_blocking=True)
+        masks = masks.cuda(non_blocking=True)
 
         logits = model(images)["out"]
-        loss = criterion(logits, masks)
+
+        if masks.dim() == 4:
+            masks_ce = masks.argmax(dim=1)
+        else:
+            masks_ce = masks
+        masks_ce = masks_ce.long()
+
+        loss = criterion(logits, masks_ce)
         total_loss += loss.item()
 
-        probs = torch.sigmoid(logits)
-        preds = (probs > thr)
-        dice = dice_coef(preds, masks)
-        dices.append(dice.mean().item())
+        preds = logits_to_preds(logits, cfg)
 
-    mean_dice = sum(dices) / max(len(dices), 1)
-    mean_loss = total_loss / max(len(val_loader), 1)
+        # 전체 Dice (scalar)
+        dice = multiclass_dice_coef(preds, masks, num_classes)
+        dices.append(dice.item())
 
-    return mean_dice, mean_loss
+        # 클래스별 Dice (C,)
+        dice_batch = multiclass_dice_per_class(
+            preds, masks, num_classes
+        )
+        dices_per_class.append(dice_batch.unsqueeze(0).cpu())
+
+    # (N, C) → (C,)
+    dices_per_class = torch.cat(dices_per_class, dim=0)
+    dices_per_class = dices_per_class.mean(dim=0)
+
+    print("\n".join(
+        f"{c:<12}: {d.item():.4f}"
+        for c, d in zip(CLASSES, dices_per_class)
+    ))
+
+    return sum(dices)/len(dices), total_loss/len(val_loader)
+
+
 
 
 def main():
@@ -205,7 +219,14 @@ def main():
         for step, (images, masks) in enumerate(train_loader, start=1):
             images, masks = images.to(device, non_blocking=True), masks.to(device, non_blocking=True)
             logits = model(images)["out"]
-            loss = criterion(logits, masks)
+            if masks.dim() == 4:
+                masks_ce = masks.argmax(dim=1)
+            else:
+                masks_ce = masks
+            masks_ce = masks_ce.long()
+
+
+            loss = criterion(logits, masks_ce)
 
             optimizer.zero_grad()
             loss.backward()
@@ -236,7 +257,7 @@ def main():
                 model,
                 val_loader,
                 criterion,
-                THR
+                cfg
             )
 
             if cfg["wandb"]["use"]:

@@ -5,26 +5,27 @@ data:
   train_image_root: /data/ephemeral/home/dataset/train/DCM
   train_label_root: /data/ephemeral/home/dataset/train/outputs_json
   test_image_root: /data/ephemeral/home/dataset/test/DCM
-  image_size: 512
+  image_size: 1024
 
 # =========================
 # Model
 # =========================
 model:
-  name: fcn_resnet50
-  pretrained: true
-  # name: segformer
-  # pretrained_model: nvidia/segformer-b2-finetuned-ade-512-512
+  # name: fcn_resnet50
+  # pretrained: true
+  name: segformer
+  encoder_name: mit_b3
+  task_type: multiclass   # multiclass | multilabel
   num_classes: 29
 
 # =========================
 # Training
 # =========================
 train:
-  batch_size: 8
-  val_batch_size: 8
+  batch_size: 4
+  val_batch_size: 4
   num_workers: 4
-  epochs: 30
+  epochs: 20
   val_interval: 2
   threshold: 0.5
 
@@ -45,8 +46,11 @@ scheduler:
 # Loss
 # =========================
 loss:
-  name: BCEDiceLoss
-  bce_weight: 0.5
+  # name: BCEDiceLoss
+  # name: CrossEntropyLoss
+  name: SoftmaxDiceLoss
+  ignore_index: 255
+  # bce_weight: 0.5
 
 # =========================
 # Random Seed
@@ -58,14 +62,15 @@ seed: 21
 # =========================
 checkpoint:
   save_dir: ./checkpoints
-  filename: fcn_resnet50_adamw_best30.pt
+  # filename: fcn_resnet50_adamw_best30.pt
+  filename : segformer_b3_sd_epoch20_1024.pt
 
 # =========================
 # WandB
 # =========================
 wandb:
   use: true
-  api_key: "내 api"
+  api_key: "0429f581dee55eedaae87afe43b791d77d58560e"
   entity: cv_11
   project: cv-11-SEG
-  name: khs_fcn_adamw_epoch30
+  name: khs_segformer_b3_sd_epoch20_1024

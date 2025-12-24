@@ -63,7 +63,7 @@ BATCH_SIZE = 8
 LR = 1e-3
 RANDOM_SEED = 21
 
-NUM_EPOCHS = 40
+NUM_EPOCHS = 32
 VAL_EVERY = 4
 
 SAVED_DIR = "checkpoints"

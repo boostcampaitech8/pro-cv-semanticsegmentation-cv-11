@@ -6,3 +6,13 @@ data/*
 /lsj/txt_csv_file/*
 /lsj/src/.env
 /lsj/src/__pycache__
+
+/checkpoints/Baseline/*
+/models/__pycache__
+/loss/__pycache__
+/optimizers/__pycache__
+/scheduler/__pycache__
+/utils/__pycache__
+/utils/.env
+/wandb/*
+/__pycache__

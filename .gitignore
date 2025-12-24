@@ -1,1 +1,8 @@
 data/*
+
+# lsj
+/lsj/checkpoints/*
+/lsj/wandb/*
+/lsj/txt_csv_file/*
+/lsj/src/.env
+/lsj/src/__pycache__

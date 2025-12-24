@@ -1,0 +1,72 @@
+# =========================
+# Data
+# =========================
+data:
+  train_image_root: /data/ephemeral/home/dataset/train/DCM
+  train_label_root: /data/ephemeral/home/dataset/train/outputs_json
+  test_image_root: /data/ephemeral/home/dataset/test/DCM
+  image_size: 512
+
+# =========================
+# Model
+# =========================
+model:
+  name: segformer
+  encoder_name: mit_b5
+  encoder_weights: imagenet
+  in_channels: 3
+  num_classes: 29
+
+# =========================
+# Training
+# =========================
+train:
+  batch_size: 4
+  val_batch_size: 4
+  num_workers: 4
+  epochs: 10
+  val_interval: 5
+  threshold: 0.5
+  amp: true
+
+# =========================
+# Optimizer
+# =========================
+optimizer:
+  name: adamw
+  lr: 1e-4
+  weight_decay: 1e-2
+
+# =========================
+# Scheduler
+# =========================
+scheduler:
+  name: cosine
+  min_lr: 1e-6
+
+# =========================
+# Loss
+# =========================
+loss:
+  name: ftloss
+  alpha: 0.6
+  beta: 0.4
+  gamma: 1.1
+
+# =========================
+# Seed
+# =========================
+seed: 21
+
+# =========================
+# Checkpoint
+# =========================
+checkpoint:
+  save_dir: ./checkpoints
+  filename: segformer_b4_ft_cosine.pt
+
+# =========================
+# WandB
+# =========================
+wandb:
+  use: false

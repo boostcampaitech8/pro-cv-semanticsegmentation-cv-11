@@ -16,3 +16,5 @@ data/*
 /utils/.env
 /wandb/*
 /__pycache__
+
+mmsegmentation/

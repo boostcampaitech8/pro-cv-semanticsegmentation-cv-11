@@ -130,7 +130,8 @@ def main(cfg):
         criterion=criterion,
         max_epoch=cfg.max_epoch,
         save_dir=cfg.save_dir,
-        val_interval=cfg.val_interval
+        val_interval=cfg.val_interval,
+        checkpoint_name_format=cfg.get('checkpoint_name_format', None)
     )
 
     trainer.train()

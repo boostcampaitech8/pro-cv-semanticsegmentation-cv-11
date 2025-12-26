@@ -32,11 +32,7 @@ pip install 'numpy<2.0'
 python train.py --config configs/hrnet_w18_config.yaml
 
 # inference
-python inference.py /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRNet_W18/best_2epoch_0.7430.pt
-    --image_root /data/ephemeral/home/dataset/test/DCM \
-    --thr 0.5 \
-    --output /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/outputs/HRNet_W18/hrnet_fcnhead_251226.csv \
-    --resize 2048
+/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/configs/mmseg/hrnet_inference.sh 를 실행.
 ```
 
 ## 모델 구조

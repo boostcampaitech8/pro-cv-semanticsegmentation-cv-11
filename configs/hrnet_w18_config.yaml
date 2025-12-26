@@ -37,7 +37,7 @@ val_transform:
 lr: 1e-3
 weight_decay: 1e-6
 
-max_epoch: &max_epoch 2
+max_epoch: &max_epoch 30
 
 # loss 관련 설정
 loss_name: Mixed
@@ -73,7 +73,7 @@ seed: 21
 
 # validation 관련 인자
 val_fold: 0
-val_interval: 1
+val_interval: 3
 threshold: 0.5
 
 # checkpoint 저장 경로
@@ -82,5 +82,5 @@ save_dir: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRN
 # wandb
 team_name: cv_11
 project_name: cv-11-SEG
-experiment_detail: hrnet_w18
+experiment_detail: hrnet_w18_30epoch
 

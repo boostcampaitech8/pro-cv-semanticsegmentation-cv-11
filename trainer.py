@@ -37,7 +37,8 @@ class Trainer:
                  criterion: torch.nn.modules.loss._Loss,
                  max_epoch: int,
                  save_dir: str,
-                 val_interval: int):
+                 val_interval: int,
+                 checkpoint_name_format: str = None):
         self.model = model
         self.device = device
         self.wandb_run = wandb_run
@@ -52,6 +53,7 @@ class Trainer:
         self.save_dir = save_dir
         self.threshold = threshold
         self.val_interval = val_interval
+        self.checkpoint_name_format = checkpoint_name_format or "best_{epoch}epoch_{dice_score:.4f}.pt"
 
 
     def save_model(self, epoch, dice_score, before_path):
@@ -63,7 +65,12 @@ class Trainer:
         if before_path != "" and osp.exists(before_path):
             os.remove(before_path)
 
-        output_path = osp.join(self.save_dir, f"best_{epoch}epoch_{dice_score:.4f}.pt")
+        # config에서 지정한 이름 형식 사용
+        checkpoint_name = self.checkpoint_name_format.format(
+            epoch=epoch,
+            dice_score=dice_score
+        )
+        output_path = osp.join(self.save_dir, checkpoint_name)
         torch.save(self.model, output_path)
         return output_path
 

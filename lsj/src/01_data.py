@@ -123,8 +123,8 @@ class XRayDataset(Dataset):
 
 # tf = A.Resize(512, 512)
 tf = A.Compose([
-    # A.Resize(512, 512),
-    A.Resize(1024, 1024),
+    A.Resize(512, 512),
+    # A.Resize(1024, 1024),
     # A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)), # ImageNet 통계량 사용
     # ToTensorV2() # 필요시 추가 (Dataset에서 직접 tensor 변환하면 생략 가능)
 ])

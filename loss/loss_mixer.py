@@ -3,6 +3,7 @@ from .dice import MyDiceLoss
 from .jaccard import MyJaccardLoss
 from .focal import MyFocalLoss
 from .tversky import MyTverskyLoss
+from .focal_tversky import MyFocalTverskyLoss
 from .mixed import MixLoss
 
 class LossMixer():
@@ -12,7 +13,8 @@ class LossMixer():
             "DiceLoss": MyDiceLoss,
             "JaccardLoss": MyJaccardLoss,
             "FocalLoss": MyFocalLoss,
-            "TverskyLoss": MyTverskyLoss
+            "TverskyLoss": MyTverskyLoss,
+            "FocalTverskyLoss": MyFocalTverskyLoss
         }
 
     def get_loss(self, loss_name, **loss_parameter):

@@ -66,7 +66,10 @@ class XRayDataset(Dataset):
         image_path = osp.join(self.image_root, image_name)
         
         image = cv2.imread(image_path)
-        image = image / 255.
+        ### 251228 ###
+        # issue #8 참고.
+        # image = image / 255.
+        image = image.astype(np.float32) / 255.0
         
         label_name = self.labels[item]
         label_path = osp.join(self.label_root, label_name)
@@ -123,8 +126,10 @@ class XRayInferenceDataset(Dataset):
         image_path = osp.join(self.image_root, image_name)
         
         image = cv2.imread(image_path)
-        image = image / 255.
-        
+
+        # image = image / 255.
+        image = image.astype(np.float32) / 255.0
+
         if self.transforms is not None:
             inputs = {"image": image}
             result = self.transforms(**inputs)

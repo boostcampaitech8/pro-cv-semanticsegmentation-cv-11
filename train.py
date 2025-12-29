@@ -108,7 +108,12 @@ def main(cfg):
 
     # optimizer는 선택
     optimizer_picker = OptimizerPicker()
-    optimizer = optimizer_picker.get_optimizer(cfg.optimizer_name, params=model.parameters())
+    optimizer = optimizer_picker.get_optimizer(
+        cfg.optimizer_name, 
+        params=model.parameters(), 
+        lr=cfg.lr,
+        weight_decay=cfg.weight_decay
+    )
     
     # scheduler 선택
     scheduler_selector = SchedulerPicker(optimizer)

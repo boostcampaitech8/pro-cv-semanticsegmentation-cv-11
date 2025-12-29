@@ -1,6 +1,7 @@
 import os
 import torch
 import argparse
+import json
 import numpy as np
 import pandas as pd
 import os.path as osp
@@ -9,7 +10,7 @@ import torch.nn.functional as F
 
 from tqdm.auto import tqdm
 from torch.utils.data import DataLoader
-from dataset import XRayInferenceDataset
+from dataset import XRayInferenceDataset, CLASSES
 
 # mask map으로 나오는 인퍼런스 결과를 RLE로 인코딩 합니다.
 def encode_mask_to_rle(mask):
@@ -43,10 +44,23 @@ def unwrap_for_infer(out):
     # DeepSup이면 d1만 사용
     return out[0] if isinstance(out, (tuple, list)) else out
 
-def inference(args, data_loader):
+def inference(args, data_loader, class_thresholds=None):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = torch.load(args.model).to(device)
     model.eval()
+    
+    # 클래스별 threshold tensor 생성 - 반복문 밖에서 한 번만 생성하고 매 배치마다 재사용함.
+    threshold_tensor = None
+    if class_thresholds is not None:
+        num_classes = len(data_loader.dataset.ind2class)
+        thresholds = []
+        for c in range(num_classes):
+            class_name = data_loader.dataset.ind2class[c]
+            # thr 지정 안 되어 있는 class는 thr 기본 인자 값 사용함 - ex. 0.5
+            thr = class_thresholds.get(class_name, args.thr)
+            thresholds.append(thr)
+        # (1, C, 1, 1) 형태로 만들어서 broadcasting 가능하게 함
+        threshold_tensor = torch.tensor(thresholds, device=device, dtype=torch.float32).view(1, num_classes, 1, 1)
     
     rles = []
     filename_and_class = []
@@ -55,11 +69,18 @@ def inference(args, data_loader):
             for images, image_names in data_loader:
                 images = images.to(device)    
                 outputs = model(images)
-                outputs = unwrap_for_infer(outputs)  # ✅ tensor (B,C,H,W)
+                outputs = unwrap_for_infer(outputs)  # tensor (B,C,H,W)
                 
                 outputs = F.interpolate(outputs, size=(2048, 2048), mode="bilinear")
                 outputs = torch.sigmoid(outputs)
-                outputs = (outputs > args.thr).detach().cpu().numpy()
+                
+                # 클래스별 threshold 적용 시
+                if threshold_tensor is not None:
+                    # GPU에서 broadcasting으로 한 번에 처리(한 번에 안하고 하나씩 하면 속도 엄청 느려짐짐)
+                    outputs = (outputs > threshold_tensor).detach().cpu().numpy()
+                else:
+                    # 기본: 모든 클래스에 동일한 threshold 적용
+                    outputs = (outputs > args.thr).detach().cpu().numpy()
                 
                 for output, image_name in zip(outputs, image_names):
                     for c, segm in enumerate(output):
@@ -76,10 +97,18 @@ if __name__=="__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("model", type=str, help="Path to the model to use")
     parser.add_argument("--image_root", type=str, default="/data/ephemeral/home/data/test/DCM")
-    parser.add_argument("--thr", type=float, default=0.5)
+    parser.add_argument("--thr", type=float, default=0.5, help="Default threshold for all classes")
+    parser.add_argument("--thr_dict", type=str, default=None, help="JSON file path for class-specific thresholds(ex. {\"Pisiform\": 0.3, \"Trapezoid\": 0.3})")
     parser.add_argument("--output", type=str, default="./output.csv")
     parser.add_argument("--resize", type=int, default=1024, help="Size to resize images (both width and height)")
     args = parser.parse_args()
+    
+    # 클래스별 threshold 로드
+    class_thresholds = None
+    if args.thr_dict:
+        with open(args.thr_dict, 'r') as f:
+            class_thresholds = json.load(f)
+        print(f"Class-wise threshold loaded: {class_thresholds}")
 
     fnames = {
         osp.relpath(osp.join(root, fname), start=args.image_root)
@@ -102,7 +131,7 @@ if __name__=="__main__":
         drop_last=False
     )
 
-    rles, filename_and_class = inference(args, test_loader)
+    rles, filename_and_class = inference(args, test_loader, class_thresholds)
 
     classes, filename = zip(*[x.split("_") for x in filename_and_class])
     

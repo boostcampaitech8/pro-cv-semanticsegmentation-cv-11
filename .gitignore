@@ -7,6 +7,26 @@ data/*
 /lsj/src/.env
 /lsj/src/__pycache__
 
+# jsw
+docs/
+mmsegmentation/
+segmentation_models.pytorch/
+
+configs/251227/
+configs/251228/
+configs/251229/
+configs/for_test/
+
+scripts/legacy_EDM
+scripts/custom_runners/
+
+visual/vis_results/
+loss/loss_for_class_weight_backup/
+logs/
+
+COMMIT_GUIDE.md
+
+# general
 /checkpoints/Baseline/*
 /models/__pycache__
 /loss/__pycache__
@@ -17,4 +37,5 @@ data/*
 /wandb/*
 /__pycache__
 
-mmsegmentation/
+
+

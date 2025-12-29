@@ -10,11 +10,10 @@ model_name: HRNet
 model_parameter:
   config_path: configs/mmseg/hrnet_w18_fcn.py
   num_classes: 29
-  # pretrained: 'open-mmlab://msra/hrnetv2_w18'  # Optional: override pretrained weights
 
-# batch_size (HRNet은 메모리를 많이 사용하므로 조정 필요)
-train_batch_size: 4 # -> 4로 도전??
-val_batch_size: 8 # -> 8로 도전??
+# batch_size
+train_batch_size: 4
+val_batch_size: 8
 
 # val_num_worker 지정
 num_workers: 4
@@ -27,6 +26,26 @@ train_transform:
   Resize:
     width: *image_size
     height: *image_size
+  ShiftScaleRotate:
+    shift_limit: 0.05
+    scale_limit: 0.05
+    rotate_limit: 5
+    p: 0.5
+  HorizontalFlip:
+    p: 0.5
+  ElasticTransform:
+    alpha: 50
+    sigma: 5
+    alpha_affine: 10
+    p: 0.2
+  CLAHE:
+    clip_limit: 2.0
+    tile_grid_size: [8, 8]
+    p: 0.2
+  RandomBrightnessContrast:
+    brightness_limit: 0.1
+    contrast_limit: 0.1
+    p: 0.2
 
 val_transform:
   Resize:
@@ -46,10 +65,10 @@ loss_name: Mixed
 loss_parameter:
   losses:
     - name: BCEWithLogitsLoss
-      weight: 0.5
+      weight: 0.3
       params: {}
     - name: DiceLoss
-      weight: 0.5
+      weight: 0.7
       params:
         smooth: 1e-5
 
@@ -60,7 +79,7 @@ scheduler_name: ReduceLROnPlateau
 scheduler_parameter:
   mode: max
   factor: 0.5
-  patience: 1
+  patience: 3
   threshold: 0.005
   threshold_mode: abs
   min_lr: 1e-6
@@ -73,18 +92,15 @@ seed: 21
 
 # validation 관련 인자
 val_fold: 0
-val_interval: 3
+val_interval: 1
 threshold: 0.5
 
 # checkpoint 저장 경로
-save_dir: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRNet_W18
-# 가중치 파일 이름 형식 (optional, 기본값: "best_{epoch}epoch_{dice_score:.4f}.pt")
-# 사용 가능한 변수: {epoch}, {dice_score}
-# 예시: "hrnet_w18_best_{epoch}epoch_{dice_score:.4f}.pt"
-checkpoint_name_format: "resize_1024_batch_4_8-best_{epoch}epoch_{dice_score:.4f}.pt"
+save_dir: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRNet_W18/251229
+checkpoint_name_format: "aug_elastic-best_{epoch}epoch_{dice_score:.4f}.pt"
 
 # wandb
 team_name: cv_11
 project_name: cv-11-SEG
-experiment_detail: hrnet_w18-resize_1024_batch_4_8
+experiment_detail: hrnet_w18-aug_elastic
 

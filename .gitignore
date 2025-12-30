@@ -16,3 +16,8 @@ data/*
 /utils/.env
 /wandb/*
 /__pycache__
+
+/checkpoints/UNet3plus/*
+
+/logs/*
+/unet_results/*

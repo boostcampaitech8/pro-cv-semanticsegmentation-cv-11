@@ -1,11 +1,12 @@
 from .unetplusplus import UnetPlusPlus
-from .unet3plus import UNet_3Plus_dsp
+from .unet3plus import UNet_3Plus_dsp, UNet_3Plus
 from .segformer import Segformer
 
 class ModelPicker():
     def __init__(self) -> None:
         self.model_classes = {
             "UnetPlusPlus": UnetPlusPlus,
+            "Unet3Plus": UNet_3Plus,
             "Unet3PlusDeepSup": UNet_3Plus_dsp,
             "SegFormer": Segformer
         }

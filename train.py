@@ -83,7 +83,7 @@ def main(cfg):
         dataset=train_dataset, 
         batch_size=cfg.train_batch_size,
         shuffle=True,
-        num_workers=8,
+        num_workers=1,
         drop_last=True,
 
     )
@@ -108,7 +108,13 @@ def main(cfg):
 
     # optimizer는 선택
     optimizer_picker = OptimizerPicker()
-    optimizer = optimizer_picker.get_optimizer(cfg.optimizer_name, params=model.parameters())
+    # optimizer = optimizer_picker.get_optimizer(cfg.optimizer_name, params=model.parameters())
+    optimizer = optimizer_picker.get_optimizer(
+        cfg.optimizer_name,
+        params=model.parameters(),
+        lr=cfg.lr,
+        weight_decay=cfg.weight_decay
+    )
     
     # scheduler 선택
     scheduler_selector = SchedulerPicker(optimizer)

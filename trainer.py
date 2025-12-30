@@ -73,15 +73,15 @@ class Trainer:
         self.model.train()
         total_loss = 0.0
 
+        #FP16
         scaler = torch.cuda.amp.GradScaler(enabled=True)
 
         with tqdm(total=len(self.train_loader), desc=f"[Training Epoch {epoch}]", disable=False) as pbar:
             for images, masks in self.train_loader:
                 images, masks = images.to(self.device), masks.to(self.device)
                 self.optimizer.zero_grad()
-                # outputs = self.model(images)
 
-                # fp16 적용
+                #FP16
                 with torch.cuda.amp.autocast(enabled=True):
                     outputs = self.model(images)
                     if isinstance(outputs, (tuple, list)):
@@ -92,10 +92,27 @@ class Trainer:
                     else:
                         outputs = resize_to(outputs, masks)   # ✅ 추가 (혹시 크기 다르면 대비)
                         loss = self.criterion(outputs, masks)
+                
+                # 원본
+                # outputs = self.model(images)
+                # if isinstance(outputs, (tuple, list)):
+                #     d1, d2, d3, d4, d5 = outputs
+                #     d1 = resize_to(d1, masks); d2 = resize_to(d2, masks); d3 = resize_to(d3, masks); d4 = resize_to(d4, masks); d5 = resize_to(d5, masks)
+
+                #     loss = (1.0*self.criterion(d1,masks) + 0.4*self.criterion(d2,masks) + 0.3*self.criterion(d3,masks) + 0.2*self.criterion(d4,masks) + 0.1*self.criterion(d5,masks))
+                # else:
+                #     outputs = resize_to(outputs, masks)   # ✅ 추가 (혹시 크기 다르면 대비)
+                #     loss = self.criterion(outputs, masks)
                     
+                # FP16
                 scaler.scale(loss).backward()
                 scaler.step(self.optimizer)
                 scaler.update()
+
+                # 원본
+                # self.optimizer.zero_grad()
+                # loss.backward()
+                # self.optimizer.step()
 
                 total_loss += loss.item()
                 pbar.update(1)

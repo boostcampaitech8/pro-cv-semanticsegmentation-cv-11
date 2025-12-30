@@ -80,7 +80,7 @@ loss_switch:
     
     stage2:  # Stage 1 -> Stage 2 전환
       enabled: true
-      lr_multiplier: 1.0  # Stage 2 전환 시 lr 조정 안 함
+      lr_multiplier: 0.5 
       conditions:
         global_dice_threshold: 0.9550  # avg_dice >= 0.9550
         class_dice_thresholds:  # 특정 클래스 dice >= threshold
@@ -101,7 +101,7 @@ loss_switch:
     
     stage3:  # Stage 2 -> Stage 3 전환
       enabled: true
-      lr_multiplier: 1.0  # Stage 3 전환 시 lr 조정 안 함
+      lr_multiplier: 0.5
       conditions:
         global_dice_threshold: 0.9650  # avg_dice >= 0.9650
         class_dice_thresholds:  # 특정 클래스 dice >= threshold
@@ -145,10 +145,10 @@ threshold: 0.5
 
 # checkpoint 저장 경로
 save_dir: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRNet_W48
-checkpoint_name_format: "hrnet_w48-best_{epoch}epoch_{dice_score:.4f}.pt"
+checkpoint_name_format: "hrnet_w48_multiplier_0.5_thr_0.8-best_{epoch}epoch_{dice_score:.4f}.pt"
 
 # wandb
 team_name: cv_11
 project_name: cv-11-SEG
-experiment_detail: hrnet_w48
+experiment_detail: hrnet_w48_multiplier_0.5_thr_0.8
 

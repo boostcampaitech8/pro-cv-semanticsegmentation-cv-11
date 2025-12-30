@@ -8,4 +8,5 @@ python /data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/inference.py \
     --image_root /data/ephemeral/home/dataset/fold0/val/DCM \
     --thr 0.5 \
     --output /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/for_vis/HRNet_W18/hrnet_w18-bce03_dice07-for_vis.csv \
-    --resize 1024
+    --resize 1024 \
+    --batch_size 1

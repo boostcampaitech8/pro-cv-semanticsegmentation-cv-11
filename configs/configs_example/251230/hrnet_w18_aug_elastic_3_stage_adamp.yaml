@@ -1,4 +1,6 @@
-# HRNet-W48 configuration
+# HRNet-W18 configuration
+# ElasticTransform 포함, 3-stage loss switching: 0.3:0.7 → 0.2:0.8 → 0.1:0.9
+# multiplier: 1.0 (lr 조정 안 함)
 
 # data 관련 설정
 image_root: /data/ephemeral/home/dataset/train/DCM
@@ -7,7 +9,7 @@ label_root: /data/ephemeral/home/dataset/train/outputs_json
 # 모델명 및 사전 학습 여부
 model_name: HRNet
 model_parameter:
-  config_path: configs/mmseg_config_py_files/hrnet_w48_fcn.py
+  config_path: configs/mmseg_config_py_files/hrnet_w18_fcn.py
   num_classes: 29
 
 # batch_size
@@ -133,7 +135,7 @@ scheduler_parameter:
   min_lr: 1e-6
 
 # optimizer 관련 설정
-optimizer_name: adamw
+optimizer_name: adamp
 
 # random seed값
 seed: 21
@@ -144,11 +146,11 @@ val_interval: 1
 threshold: 0.5
 
 # checkpoint 저장 경로
-save_dir: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRNet_W48
-checkpoint_name_format: "hrnet_w48-best_{epoch}epoch_{dice_score:.4f}.pt"
+save_dir: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRNet_W18/251230
+checkpoint_name_format: "hrnet_w18_aug_elastic_3_stage_adamp-best_{epoch}epoch_{dice_score:.4f}.pt"
 
 # wandb
 team_name: cv_11
 project_name: cv-11-SEG
-experiment_detail: hrnet_w48
+experiment_detail: hrnet_w18_aug_elastic_3_stage_adamp
 

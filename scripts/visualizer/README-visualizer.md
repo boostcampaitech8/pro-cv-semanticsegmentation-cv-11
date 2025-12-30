@@ -1,16 +1,15 @@
-# Visual 폴더
+# Visualizer 폴더
 
-이 폴더는 모델 추론 결과를 시각화하고 분석하는 스크립트들을 관리합니다.
+모델 추론 결과를 시각화하고 분석하는 스크립트들을 관리하는 폴더입니다.
 
 ## 폴더 구조
 
 ```
-visual/
+scripts/visualizer/
 ├── visual.py                 # 기본 시각화 스크립트
-├── visual_with_GT.py         # Ground Truth 포함 시각화
-├── visual_run.sh             # 기본 시각화 실행 스크립트
-├── visual_run_with_GT.sh     # GT 포함 시각화 실행 스크립트
-└── vis_results/              # 시각화 결과 저장 폴더 (gitignore)
+├── visual_with_GT.py          # Ground Truth 포함 시각화
+├── visual_run.sh              # 시각화 실행 스크립트
+└── README-visualizer.md       # 이 파일
 ```
 
 ## 주요 파일 설명
@@ -29,55 +28,55 @@ visual/
 
 ### 실행 스크립트
 
-- **`visual_run.sh`**: 기본 시각화 실행
-  - `visual.py`를 실행하는 wrapper 스크립트
-  - 기본 파라미터로 시각화 수행
-
-- **`visual_run_with_GT.sh`**: GT 포함 시각화 실행
-  - `visual_with_GT.py`를 실행하는 wrapper 스크립트
-  - Ground Truth와 함께 시각화 수행
+- **`visual_run.sh`**: 시각화 실행 스크립트
+  - 상단에 변수 선언으로 설정 관리
+  - 기본 시각화와 GT 포함 시각화 모두 지원
+  - 주석 해제로 원하는 모드 선택
 
 ## 사용법
 
-### 기본 시각화
+### Shell 스크립트 사용
 
 ```bash
-cd visual
-bash visual_run.sh
+# 스크립트 상단의 변수들을 수정
+CSV_FILE="/path/to/predictions.csv"
+IMAGE_ROOT="/path/to/images"
+LABEL_ROOT="/path/to/labels"  # GT 포함 시각화용
+IDS="ID001 ID002 ID003"
+
+# 실행
+./scripts/visualizer/visual_run.sh
 ```
 
-또는 직접 Python 스크립트 실행:
+### Python 스크립트 직접 실행
+
+#### 기본 시각화
 
 ```bash
-python visual/visual.py \
+python scripts/visualizer/visual.py \
     --image_root /path/to/images \
     --csv_path /path/to/predictions.csv \
-    --output_dir visual/vis_results
+    --output_dir /path/to/output \
+    --image_size 1024
 ```
 
-### Ground Truth 포함 시각화
+#### Ground Truth 포함 시각화
 
 ```bash
-cd visual
-bash visual_run_with_GT.sh
-```
-
-또는 직접 Python 스크립트 실행:
-
-```bash
-python visual/visual_with_GT.py \
+python scripts/visualizer/visual_with_GT.py \
     --image_root /path/to/images \
     --label_root /path/to/labels \
     --csv_path /path/to/predictions.csv \
-    --output_dir visual/vis_results
+    --output_dir /path/to/output \
+    --image_size 1024
 ```
 
 ## 시각화 결과
 
-시각화 결과는 `vis_results/` 폴더에 저장됩니다:
+시각화 결과는 지정한 출력 디렉토리에 저장됩니다:
 
 ```
-vis_results/
+output_dir/
 └── {experiment_name}/
     └── {image_id}/
         ├── original.png      # 원본 이미지
@@ -129,12 +128,6 @@ def decode_rle_to_mask(rle, height, width):
     # 구현 내용은 visual.py 참고
 ```
 
-## 주의사항
-
-- `vis_results/` 폴더는 gitignore에 포함되어 있어 커밋되지 않습니다.
-- 대용량 이미지 시각화 시 디스크 공간 확인 필요
-- 시각화 결과는 실험별로 폴더를 분리하여 관리하는 것을 권장합니다.
-
 ## 활용 예시
 
 ### 모델 성능 분석
@@ -148,4 +141,10 @@ def decode_rle_to_mask(rle, height, width):
 1. 최종 추론 결과 CSV 생성
 2. `visual.py`로 샘플 이미지 시각화
 3. 비정상적인 예측 확인 및 수정
+
+## 주의사항
+
+- 대용량 이미지 시각화 시 디스크 공간 확인 필요
+- 시각화 결과는 실험별로 폴더를 분리하여 관리하는 것을 권장합니다.
+- RLE 디코딩은 CSV 파일의 형식에 맞춰 자동으로 수행됩니다.
 

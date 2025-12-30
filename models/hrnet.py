@@ -34,7 +34,15 @@ class HRNet(nn.Module):
         
         # Override num_classes
         if 'decode_head' in cfg.model:
-            cfg.model['decode_head']['num_classes'] = num_classes
+            decode_head = cfg.model['decode_head']
+            # decode_head가 리스트인 경우 (CascadeEncoderDecoder, e.g., OCRNet)
+            if isinstance(decode_head, list):
+                for head in decode_head:
+                    if isinstance(head, dict):
+                        head['num_classes'] = num_classes
+            # decode_head가 딕셔너리인 경우 (EncoderDecoder, e.g., FCN)
+            elif isinstance(decode_head, dict):
+                decode_head['num_classes'] = num_classes
         
         # Override pretrained if provided
         if pretrained is not None:
@@ -46,12 +54,22 @@ class HRNet(nn.Module):
                 cfg.model[key] = value
             elif 'backbone' in cfg.model and key in cfg.model['backbone']:
                 cfg.model['backbone'][key] = value
-            elif 'decode_head' in cfg.model and key in cfg.model['decode_head']:
-                cfg.model['decode_head'][key] = value
+            elif 'decode_head' in cfg.model:
+                decode_head = cfg.model['decode_head']
+                # decode_head가 리스트인 경우
+                if isinstance(decode_head, list):
+                    for head in decode_head:
+                        if isinstance(head, dict) and key in head:
+                            head[key] = value
+                # decode_head가 딕셔너리인 경우
+                elif isinstance(decode_head, dict) and key in decode_head:
+                    decode_head[key] = value
         
         # Build model
         self.model = build_segmentor(cfg.model)
     
+    ### 실제로는 이거 실행 안 됨. if config_path: 에서 걸리기 때문. ###
+    ### 즉 이 파일은 인코더 hrnet만 정의하고 있음. ###
     def _create_default_config(self, num_classes, pretrained):
         """Create default HRNet-W18 config."""
         from mmengine import ConfigDict
@@ -137,6 +155,7 @@ class HRNet(nn.Module):
         
         # _forward returns a tensor (seg_logits)
         # If it's a tuple/list, take the first element
+        ### 이거 ocrhead라고 걸리는 거 아님. 그냥 배치로 했을 때 걸림.
         if isinstance(output, (tuple, list)):
             return output[0]
         return output

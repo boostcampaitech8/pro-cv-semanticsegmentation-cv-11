@@ -37,5 +37,7 @@ COMMIT_GUIDE.md
 /wandb/*
 /__pycache__
 
+/checkpoints/UNet3plus/*
 
-
+/logs/*
+/unet_results/*

@@ -100,7 +100,7 @@ if __name__=="__main__":
     parser.add_argument("--thr", type=float, default=0.5, help="Default threshold for all classes")
     parser.add_argument("--thr_dict", type=str, default=None, help="JSON file path for class-specific thresholds(ex. {\"Pisiform\": 0.3, \"Trapezoid\": 0.3})")
     parser.add_argument("--output", type=str, default="./output.csv")
-    parser.add_argument("--resize", type=int, default=1024, help="Size to resize images (both width and height)")
+    parser.add_argument("--resize", type=int, default=512, help="Size to resize images (both width and height)")
     args = parser.parse_args()
     
     # 클래스별 threshold 로드

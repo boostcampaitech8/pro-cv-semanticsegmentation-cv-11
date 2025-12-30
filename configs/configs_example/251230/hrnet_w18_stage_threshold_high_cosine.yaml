@@ -1,4 +1,6 @@
-# HRNet-W48 configuration
+# HRNet-W18 configuration
+# Stage threshold 높은 버전: stage2(0.9550), stage3(0.9650)
+# multiplier: 1.0 (lr 조정 안 함), scheduler: CosineAnnealingLR (30 에폭, 15 에폭 변곡점)
 
 # data 관련 설정
 image_root: /data/ephemeral/home/dataset/train/DCM
@@ -7,12 +9,12 @@ label_root: /data/ephemeral/home/dataset/train/outputs_json
 # 모델명 및 사전 학습 여부
 model_name: HRNet
 model_parameter:
-  config_path: configs/mmseg_config_py_files/hrnet_w48_fcn.py
+  config_path: configs/mmseg_config_py_files/hrnet_w18_fcn.py
   num_classes: 29
 
 # batch_size
 train_batch_size: 2
-val_batch_size: 1
+val_batch_size: 2
 
 # val_num_worker 지정
 num_workers: 4
@@ -61,26 +63,27 @@ max_epoch: &max_epoch 30
 loss_name: Mixed
 
 # combo loss 사용시
-# Stage 1: BCE:Dice = 0.3:0.7
+# Stage 1: BCE:Dice = 0.7:0.3 (의료 세그멘테이션에 최적화)
+# - 초기부터 Dice 비중을 높여 클래스 불균형 문제 조기 대응
 loss_parameter:
   losses:
     - name: BCEWithLogitsLoss
-      weight: 0.3
+      weight: 0.7
       params: {}
     - name: DiceLoss
-      weight: 0.7
+      weight: 0.3
       params:
         smooth: 1e-5
 
-# 3-stage loss switching 설정
+# 3-stage loss switching 설정 (의료 세그멘테이션 최적화)
 loss_switch:
   loss_stages:
-    stage1:  # 기본 stage (BCE:Dice = 0.3:0.7)
+    stage1:  # 기본 stage (BCE:Dice = 0.7:0.3)
       # stage1은 loss_name과 loss_parameter로 설정됨 (위에 정의됨)
     
     stage2:  # Stage 1 -> Stage 2 전환
       enabled: true
-      lr_multiplier: 1.0  # Stage 2 전환 시 lr 조정 안 함
+      lr_multiplier: 1.0  # Stage 2 전환 시 lr 조정 안 함 (cosine scheduler 사용)
       conditions:
         global_dice_threshold: 0.9550  # avg_dice >= 0.9550
         class_dice_thresholds:  # 특정 클래스 dice >= threshold
@@ -92,16 +95,16 @@ loss_switch:
         loss_parameter:
           losses:
             - name: BCEWithLogitsLoss
-              weight: 0.2  # Dice 중심으로 전환
+              weight: 0.25  # Dice 중심으로 전환 (의료: 경계 정확도 향상)
               params: {}
             - name: DiceLoss
-              weight: 0.8
+              weight: 0.75
               params:
                 smooth: 1e-5
     
     stage3:  # Stage 2 -> Stage 3 전환
       enabled: true
-      lr_multiplier: 1.0  # Stage 3 전환 시 lr 조정 안 함
+      lr_multiplier: 1.0  # Stage 3 전환 시 lr 조정 안 함 (cosine scheduler 사용)
       conditions:
         global_dice_threshold: 0.9650  # avg_dice >= 0.9650
         class_dice_thresholds:  # 특정 클래스 dice >= threshold
@@ -113,7 +116,7 @@ loss_switch:
         loss_parameter:
           losses:
             - name: BCEWithLogitsLoss
-              weight: 0.1  # Dice에 거의 집중
+              weight: 0.1  # Dice에 거의 집중 (의료: 정밀도 최적화)
               params: {}
             - name: DiceLoss
               weight: 0.9
@@ -121,16 +124,15 @@ loss_switch:
                 smooth: 1e-5
 
 # scheduler 관련 설정
-scheduler_name: ReduceLROnPlateau
+scheduler_name: CosineAnnealingLR
 
 # scheduler 필요한 parameter -> dict 형태로 작성
+# CosineAnnealingLR 파라미터:
+# - T_max: cosine annealing의 주기 (30 에폭)
+# - eta_min: 최소 learning rate (15 에폭에서 변곡점, 30 에폭에서 최소값 도달)
 scheduler_parameter:
-  mode: max
-  factor: 0.5
-  patience: 3
-  threshold: 0.005
-  threshold_mode: abs
-  min_lr: 1e-6
+  T_max: 30  # 30 에폭에 맞춤 (15 에폭에서 변곡점)
+  eta_min: 1e-6  # 최소 learning rate
 
 # optimizer 관련 설정
 optimizer_name: adamw
@@ -144,11 +146,11 @@ val_interval: 1
 threshold: 0.5
 
 # checkpoint 저장 경로
-save_dir: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRNet_W48
-checkpoint_name_format: "hrnet_w48-best_{epoch}epoch_{dice_score:.4f}.pt"
+save_dir: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRNet_W18/251230
+checkpoint_name_format: "hrnet_w18-mmseg_3_stage_loss_factor_2_cosine-best_{epoch}epoch_{dice_score:.4f}.pt"
 
 # wandb
 team_name: cv_11
 project_name: cv-11-SEG
-experiment_detail: hrnet_w48
+experiment_detail: hrnet_w18-mmseg_3_stage_loss_factor_2_cosine
 

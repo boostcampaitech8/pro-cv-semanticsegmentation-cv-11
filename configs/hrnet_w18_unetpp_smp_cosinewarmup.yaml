@@ -1,6 +1,5 @@
-# HRNet-W18 + FCN Decoder
-# mmsegmentation의 HRNet backbone + FCNHead decoder 사용
-# UnetPlusPlus와 비교하기 위한 변인 통제 실험
+# HRNet-W18 + UnetPlusPlus (SMP) with CosineAnnealingWarmupRestarts
+# 기존 hrnet_w18_unetpp_smp.yaml에서 scheduler만 CosineAnnealingWarmupRestarts로 변경
 
 # data 관련 설정
 image_root: /data/ephemeral/home/dataset/train/DCM
@@ -14,7 +13,7 @@ model_parameter:
 
 # batch_size
 train_batch_size: 2
-val_batch_size: 2  # Reduced from 8 to 4 to avoid OOM in validation
+val_batch_size: 1
 
 # val_num_worker 지정
 num_workers: 4
@@ -53,7 +52,7 @@ val_transform:
     width: *image_size
     height: *image_size
   
-# 학습 관련 하이퍼파라미터[]
+# 학습 관련 하이퍼파라미터
 lr: 3e-3
 weight_decay: 1e-6
 
@@ -63,73 +62,87 @@ max_epoch: &max_epoch 30
 loss_name: Mixed
 
 # combo loss 사용시
+# Stage 1: BCE:Dice = 0.7:0.3 (의료 세그멘테이션에 최적화)
+# - 초기부터 Dice 비중을 높여 클래스 불균형 문제 조기 대응
 loss_parameter:
   losses:
     - name: BCEWithLogitsLoss
-      weight: 0.3
+      weight: 0.7
       params: {}
     - name: DiceLoss
-      weight: 0.7
+      weight: 0.3
       params:
         smooth: 1e-5
 
-# 3-stage loss switching 설정
+# 3-stage loss switching 설정 (의료 세그멘테이션 최적화)
 loss_switch:
   loss_stages:
-    stage1:  # 기본 stage (BCE:Dice = 0.8:0.2)
+    stage1:  # 기본 stage (BCE:Dice = 0.7:0.3)
       # stage1은 loss_name과 loss_parameter로 설정됨 (위에 정의됨)
     
     stage2:  # Stage 1 -> Stage 2 전환
       enabled: true
       conditions:
-        global_dice_threshold: 0.85  # avg_dice >= 0.85
+        global_dice_threshold: 0.80  # avg_dice >= 0.80 (의료: 조기 전환으로 Dice 중심 학습)
         class_dice_thresholds:  # 특정 클래스 dice >= threshold
-          Pisiform: 0.8
-          Trapezoid: 0.8
+          Pisiform: 0.75  # 의료: 낮은 threshold로 조기 전환
+          Trapezoid: 0.75
         consecutive_epochs: 3  # 연속 3 에폭 만족 필요
       loss:
         loss_name: Mixed
         loss_parameter:
           losses:
             - name: BCEWithLogitsLoss
-              weight: 0.5
+              weight: 0.4  # Dice 중심으로 전환 (의료: 경계 정확도 향상)
               params: {}
             - name: DiceLoss
-              weight: 0.5
+              weight: 0.6
               params:
                 smooth: 1e-5
     
     stage3:  # Stage 2 -> Stage 3 전환
       enabled: true
       conditions:
-        global_dice_threshold: 0.95  # avg_dice >= 0.95
+        global_dice_threshold: 0.90  # avg_dice >= 0.90 (의료: 고성능 달성 후 fine-tuning)
         class_dice_thresholds:  # 특정 클래스 dice >= threshold
-          Pisiform: 0.9
-          Trapezoid: 0.9
+          Pisiform: 0.85  # 의료: 높은 정확도 요구
+          Trapezoid: 0.85
         consecutive_epochs: 3  # 연속 3 에폭 만족 필요
       loss:
         loss_name: Mixed
         loss_parameter:
           losses:
             - name: BCEWithLogitsLoss
-              weight: 0.2
+              weight: 0.1  # Dice에 거의 집중 (의료: 정밀도 최적화)
               params: {}
             - name: DiceLoss
-              weight: 0.8
+              weight: 0.9
               params:
                 smooth: 1e-5
 
 # scheduler 관련 설정
-scheduler_name: ReduceLROnPlateau
+scheduler_name: CosineAnnealingWarmupRestarts
 
 # scheduler 필요한 parameter -> dict 형태로 작성
+# CosineAnnealingWarmupRestarts 파라미터:
+# - first_cycle_steps: 첫 번째 사이클의 총 스텝 수 (warmup 포함)
+# - warmup_steps: 웜업 스텝 수 (1 에폭 = 320 steps)
+# - max_lr: 최대 learning rate (초기 lr과 동일)
+# - min_lr: 최소 learning rate
+# - cycle_mult: 사이클 배수 (1.0이면 동일한 사이클 반복)
+# - gamma: 감쇠 계수 (0.5이면 각 사이클마다 lr이 절반으로 감소)
+# 
+# 설정: train 640개, batch_size 2, 1 에폭당 320 steps
+#       warmup 320 스텝(1 에폭) 후 14 에폭이 지나면 반으로 감소
+#       first_cycle_steps = warmup(320) + 14 에폭(4480) = 4800 (15 에폭)
+#       30 에폭에서 2 사이클로 균등 분할
 scheduler_parameter:
-  mode: max
-  factor: 0.5
-  patience: 3
-  threshold: 0.005
-  threshold_mode: abs
-  min_lr: 1e-6
+  first_cycle_steps: 3520  # 320 * (1 + 10) = 주기 10 에폭
+  warmup_steps: 320  # 1 에폭 (320 steps)
+  max_lr: 3e-3  # 초기 learning rate
+  min_lr: 1e-6  # 최소 learning rate
+  cycle_mult: 1.0  # 사이클 배수 (1.0이면 동일한 사이클 반복)
+  gamma: 0.3  # 감쇠 계수 (각 사이클마다 lr이 0.3배로 감소)
 
 # optimizer 관련 설정
 optimizer_name: adamw
@@ -144,10 +157,10 @@ threshold: 0.5
 
 # checkpoint 저장 경로
 save_dir: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRNet_W18/251230
-checkpoint_name_format: "hrnet_w18_unetpp_loss_switching-{epoch}epoch_{dice_score:.4f}.pt"
+checkpoint_name_format: "hrnet_w18_unetpp_cosinewarmup-{epoch}epoch_{dice_score:.4f}.pt"
 
 # wandb
 team_name: cv_11
 project_name: cv-11-SEG
-experiment_detail: hrnet_w18_unetpp_loss_switching
+experiment_detail: hrnet_w18_unetpp_cosinewarmup
 

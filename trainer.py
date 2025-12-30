@@ -38,7 +38,9 @@ class Trainer:
                  max_epoch: int,
                  save_dir: str,
                  val_interval: int,
-                 checkpoint_name_format: str = None):
+                 checkpoint_name_format: str = None,
+                 loss_selector = None,
+                 loss_switch_config: dict = None):
         self.model = model
         self.device = device
         self.wandb_run = wandb_run
@@ -54,13 +56,25 @@ class Trainer:
         self.threshold = threshold
         self.val_interval = val_interval
         self.checkpoint_name_format = checkpoint_name_format or "best_{epoch}epoch_{dice_score:.4f}.pt"
+        
+        # Loss switching 관련 설정
+        self.loss_selector = loss_selector
+        self.loss_switch_config = loss_switch_config
+        self.loss_switched = False
+        self.consecutive_satisfied_epochs = 0  # 연속 만족 에폭 카운터
+        
+        # 3-stage loss switching 관련 설정
+        self.loss_stages_config = loss_switch_config.get('loss_stages', None) if loss_switch_config else None
+        self.current_stage = 1  # 현재 stage (1, 2, 3)
+        self.stage2_consecutive = 0  # Stage 2 전환을 위한 연속 만족 카운터
+        self.stage3_consecutive = 0  # Stage 3 전환을 위한 연속 만족 카운터
 
 
     def save_model(self, epoch, dice_score, before_path):
         # checkpoint 저장 폴더 생성
         if not osp.isdir(self.save_dir):
             # os.mkdir(self.save_dir) # mkdir은 상위 디렉토리가 없으면 안만들어짐
-            os.makedirs(self.save_dir, exist_ok=True)
+            os.makedirs(self.save_dir, exist_ok=True)   
 
         if before_path != "" and osp.exists(before_path):
             os.remove(before_path)
@@ -79,6 +93,11 @@ class Trainer:
         train_start = time.time()
         self.model.train()
         total_loss = 0.0
+        
+        # 에포크 시작 시 현재 LR 및 Stage 출력
+        current_lr = self.optimizer.param_groups[0]['lr']
+        stage_info = f"Stage {self.current_stage}" if self.loss_stages_config is not None else ""
+        print(f"Training epoch {epoch} start - Current LR: {current_lr:.6f} {stage_info}")
 
         scaler = torch.cuda.amp.GradScaler(enabled=True)
 
@@ -104,16 +123,22 @@ class Trainer:
                 scaler.step(self.optimizer)
                 scaler.update()
 
+                # CosineAnnealingWarmupRestarts는 step 단위로 동작하므로 매 배치마다 step() 호출
+                if self.scheduler_name == "CosineAnnealingWarmupRestarts":
+                    self.scheduler.step()
+
                 total_loss += loss.item()
                 pbar.update(1)
                 pbar.set_postfix(loss=loss.item())
             
         train_end = time.time() - train_start 
         current_lr = self.optimizer.param_groups[0]['lr']
-        print("Epoch {}, Train Loss: {:.4f} || LR: {:.6f} || Elapsed time: {} || ETA: {}\n".format(
+        stage_info = f"|| Stage: {self.current_stage}" if self.loss_stages_config is not None else ""
+        print("Epoch {}, Train Loss: {:.4f} || LR: {:.6f} {} || Elapsed time: {} || ETA: {}\n".format(
             epoch,
             total_loss / len(self.train_loader),
             current_lr,
+            stage_info,
             timedelta(seconds=train_end),
             timedelta(seconds=train_end * (self.max_epoch - epoch))
         ))
@@ -140,6 +165,9 @@ class Trainer:
                         loss = (1.0*self.criterion(d1,masks) + 0.4*self.criterion(d2,masks) + 0.3*self.criterion(d3,masks) + 0.2*self.criterion(d4,masks) + 0.1*self.criterion(d5,masks))
 
                         outputs = d1 # 이거 안하면 오류남, outputs이 그대로 tuple list로 받아져서
+                        
+                        ### 251230 jsw) 이거 하면 메모리 사용량 줄어들 수도 있다고 함. ### 
+                        del d2, d3, d4, d5
                     else:
                         outputs = resize_to(outputs, masks)  # ✅ resize를 outputs에 반영
                         loss = self.criterion(outputs, masks)
@@ -199,11 +227,15 @@ class Trainer:
 
             train_loss = self.train_epoch(epoch)
 
-            wandb.log({
+            train_log = {
                 "train/epoch" : epoch,
                 "train/loss" : train_loss,
                 "train/lr": self.optimizer.param_groups[0]['lr']
-            }, step=epoch)
+            }
+            # 3-stage loss switching 사용 시 현재 stage 로깅
+            if self.loss_stages_config is not None:
+                train_log["train/loss_stage"] = self.current_stage
+            wandb.log(train_log, step=epoch)
 
             # validation 주기에 따라 loss를 출력하고 best model을 저장합니다.
             if epoch % self.val_interval == 0:
@@ -212,6 +244,10 @@ class Trainer:
                     "val/loss": val_loss,
                     "val/avg_dice": avg_dice,
                 }
+                # 3-stage loss switching 사용 시 현재 stage 로깅
+                if self.loss_stages_config is not None:
+                    val_log["val/loss_stage"] = self.current_stage
+                
                 # class별 dice를 val/{class_name}_dice 형식으로 추가
                 for class_name, dice_score in dices_per_class.items():
                     # 클래스 이름을 wandb-friendly 형식으로 변환 (공백, 하이픈을 언더스코어로) -> 굳이 필요 없을 듯.
@@ -224,11 +260,224 @@ class Trainer:
                     print(f"Best performance at epoch: {epoch}, {best_dice:.4f} -> {avg_dice:.4f}\n")
                     best_dice = avg_dice
                     before_path = self.save_model(epoch, best_dice, before_path)
+                
+                # 3-stage loss switching 체크
+                if (self.loss_stages_config is not None and 
+                    self.loss_selector is not None):
                     
+                    # Stage 1 -> Stage 2 전환 체크
+                    if self.current_stage == 1:
+                        stage2_config = self.loss_stages_config.get('stage2', None)
+                        if stage2_config and stage2_config.get('enabled', False):
+                            conditions = stage2_config.get('conditions', {})
+                            global_threshold = conditions.get('global_dice_threshold', 0.85)
+                            class_thresholds = conditions.get('class_dice_thresholds', {})
+                            consecutive_epochs = conditions.get('consecutive_epochs', 3)
+                            
+                            # 조건 체크
+                            conditions_met = True
+                            if avg_dice < global_threshold:
+                                conditions_met = False
+                            
+                            if conditions_met and class_thresholds:
+                                for class_name, threshold in class_thresholds.items():
+                                    if class_name not in dices_per_class:
+                                        conditions_met = False
+                                        break
+                                    if dices_per_class[class_name] < threshold:
+                                        conditions_met = False
+                                        break
+                            
+                            if conditions_met:
+                                self.stage2_consecutive += 1
+                                print(f"Stage 1->2 condition met ({self.stage2_consecutive}/{consecutive_epochs} consecutive epochs)")
+                                
+                                if self.stage2_consecutive >= consecutive_epochs:
+                                    stage2_loss = stage2_config.get('loss', {})
+                                    new_loss_name = stage2_loss.get('loss_name', 'Mixed')
+                                    new_loss_parameter = stage2_loss.get('loss_parameter', {})
+                                    
+                                    # Learning rate 조정 (lr_multiplier가 설정된 경우)
+                                    lr_multiplier = stage2_config.get('lr_multiplier', 1.0)
+                                    if lr_multiplier != 1.0:
+                                        # CosineAnnealingWarmupRestarts의 경우 max_lr, min_lr, base_max_lr 조정
+                                        # 주의) 아직 테스트는 안 했음.
+                                        if self.scheduler_name == "CosineAnnealingWarmupRestarts":
+                                            current_max_lr = self.scheduler.max_lr
+                                            current_min_lr = self.scheduler.min_lr
+                                            current_base_max_lr = self.scheduler.base_max_lr
+                                            
+                                            new_max_lr = current_max_lr * lr_multiplier
+                                            new_min_lr = current_min_lr * lr_multiplier
+                                            new_base_max_lr = current_base_max_lr * lr_multiplier
+                                            
+                                            self.scheduler.max_lr = new_max_lr
+                                            self.scheduler.min_lr = new_min_lr
+                                            self.scheduler.base_max_lr = new_base_max_lr
+                                            
+                                            print(f"CosineAnnealingWarmupRestarts LR adjusted: max_lr {current_max_lr:.6f} -> {new_max_lr:.6f}, min_lr {current_min_lr:.6f} -> {new_min_lr:.6f} (multiplier: {lr_multiplier})")
+                                        else:
+                                            # 다른 스케줄러 (ReduceLROnPlateau 등)의 경우 기존 방식
+                                            current_lr = self.optimizer.param_groups[0]['lr']
+                                            new_lr = current_lr * lr_multiplier
+                                            for param_group in self.optimizer.param_groups:
+                                                param_group['lr'] = new_lr
+                                            print(f"Learning rate adjusted: {current_lr:.6f} -> {new_lr:.6f} (multiplier: {lr_multiplier})")
+                                    
+                                    print(f"Stage 1 -> Stage 2 switching triggered at epoch {epoch}")
+                                    self.criterion = self.loss_selector.get_loss(new_loss_name, **new_loss_parameter)
+                                    self.current_stage = 2
+                                    self.stage2_consecutive = 0
+                                    
+                                    wandb.log({
+                                        "val/loss_stage": 2,
+                                        "val/loss_stage_switch_epoch": epoch
+                                    }, step=epoch)
+                            else:
+                                if self.stage2_consecutive > 0:
+                                    print(f"Stage 1->2 condition not met, resetting counter (was {self.stage2_consecutive}/{consecutive_epochs})")
+                                self.stage2_consecutive = 0
+                    
+                    # Stage 2 -> Stage 3 전환 체크
+                    elif self.current_stage == 2:
+                        stage3_config = self.loss_stages_config.get('stage3', None)
+                        if stage3_config and stage3_config.get('enabled', False):
+                            conditions = stage3_config.get('conditions', {})
+                            global_threshold = conditions.get('global_dice_threshold', 0.95)
+                            class_thresholds = conditions.get('class_dice_thresholds', {})
+                            consecutive_epochs = conditions.get('consecutive_epochs', 3)
+                            
+                            # 조건 체크
+                            conditions_met = True
+                            if avg_dice < global_threshold:
+                                conditions_met = False
+                            
+                            if conditions_met and class_thresholds:
+                                for class_name, threshold in class_thresholds.items():
+                                    if class_name not in dices_per_class:
+                                        conditions_met = False
+                                        break
+                                    if dices_per_class[class_name] < threshold:
+                                        conditions_met = False
+                                        break
+                            
+                            if conditions_met:
+                                self.stage3_consecutive += 1
+                                print(f"Stage 2->3 condition met ({self.stage3_consecutive}/{consecutive_epochs} consecutive epochs)")
+                                
+                                if self.stage3_consecutive >= consecutive_epochs:
+                                    stage3_loss = stage3_config.get('loss', {})
+                                    new_loss_name = stage3_loss.get('loss_name', 'Mixed')
+                                    new_loss_parameter = stage3_loss.get('loss_parameter', {})
+                                    
+                                    # Learning rate 조정 (lr_multiplier가 설정된 경우)
+                                    lr_multiplier = stage3_config.get('lr_multiplier', 1.0)
+                                    if lr_multiplier != 1.0:
+                                        # CosineAnnealingWarmupRestarts의 경우 max_lr, min_lr, base_max_lr 조정
+                                        # 주의) 아직 테스트는 안 했음.
+                                        if self.scheduler_name == "CosineAnnealingWarmupRestarts":
+                                            current_max_lr = self.scheduler.max_lr
+                                            current_min_lr = self.scheduler.min_lr
+                                            current_base_max_lr = self.scheduler.base_max_lr
+                                            
+                                            new_max_lr = current_max_lr * lr_multiplier
+                                            new_min_lr = current_min_lr * lr_multiplier
+                                            new_base_max_lr = current_base_max_lr * lr_multiplier
+                                            
+                                            self.scheduler.max_lr = new_max_lr
+                                            self.scheduler.min_lr = new_min_lr
+                                            self.scheduler.base_max_lr = new_base_max_lr
+                                            
+                                            print(f"CosineAnnealingWarmupRestarts LR adjusted: max_lr {current_max_lr:.6f} -> {new_max_lr:.6f}, min_lr {current_min_lr:.6f} -> {new_min_lr:.6f} (multiplier: {lr_multiplier})")
+                                        else:
+                                            # 다른 스케줄러 (ReduceLROnPlateau 등)의 경우 기존 방식
+                                            current_lr = self.optimizer.param_groups[0]['lr']
+                                            new_lr = current_lr * lr_multiplier
+                                            for param_group in self.optimizer.param_groups:
+                                                param_group['lr'] = new_lr
+                                            print(f"Learning rate adjusted: {current_lr:.6f} -> {new_lr:.6f} (multiplier: {lr_multiplier})")
+                                    
+                                    print(f"Stage 2 -> Stage 3 switching triggered at epoch {epoch}")
+                                    self.criterion = self.loss_selector.get_loss(new_loss_name, **new_loss_parameter)
+                                    self.current_stage = 3
+                                    self.stage3_consecutive = 0
+                                    
+                                    wandb.log({
+                                        "val/loss_stage": 3,
+                                        "val/loss_stage_switch_epoch": epoch
+                                    }, step=epoch)
+                            else:
+                                if self.stage3_consecutive > 0:
+                                    print(f"Stage 2->3 condition not met, resetting counter (was {self.stage3_consecutive}/{consecutive_epochs})")
+                                self.stage3_consecutive = 0
+                
+                # ============================================================
+                # 레거시 코드: 기존 단일 loss switching 방식 (사용 안 함)
+                # 현재는 3-stage loss switching (위의 loss_stages_config)만 사용 중
+                # 다음 실행 시 문제 없으면 이 블록 전체를 삭제해도 됨
+                # ============================================================
+                # elif (self.loss_switch_config is not None and 
+                #       self.loss_switch_config.get('enabled', False) and 
+                #       not self.loss_switched and 
+                #       self.loss_selector is not None):
+                #     
+                #     conditions = self.loss_switch_config.get('conditions', {})
+                #     global_threshold = conditions.get('global_dice_threshold', None)
+                #     class_thresholds = conditions.get('class_dice_thresholds', {})
+                #     consecutive_epochs = conditions.get('consecutive_epochs', 3)
+                #     
+                #     # 조건 체크
+                #     conditions_met = True
+                #     
+                #     # 1. Global dice threshold 체크
+                #     if global_threshold is not None:
+                #         if avg_dice < global_threshold:
+                #             conditions_met = False
+                #     
+                #     # 2. Class dice thresholds 체크
+                #     if conditions_met and class_thresholds:
+                #         for class_name, threshold in class_thresholds.items():
+                #             if class_name not in dices_per_class:
+                #                 conditions_met = False
+                #                 break
+                #             if dices_per_class[class_name] < threshold:
+                #                 conditions_met = False
+                #                 break
+                #     
+                #     # 조건 만족 여부에 따라 처리
+                #     if conditions_met:
+                #         self.consecutive_satisfied_epochs += 1
+                #         print(f"Loss switch condition met ({self.consecutive_satisfied_epochs}/{consecutive_epochs} consecutive epochs)")
+                #         
+                #         # 연속 만족 에폭 수가 충족되면 loss 전환
+                #         if self.consecutive_satisfied_epochs >= consecutive_epochs:
+                #             loss_after_switch = self.loss_switch_config.get('loss_after_switch', {})
+                #             new_loss_name = loss_after_switch.get('loss_name', 'DiceLoss')
+                #             new_loss_parameter = loss_after_switch.get('loss_parameter', {})
+                #             
+                #             print(f"Loss switching triggered at epoch {epoch}")
+                #             print(f"Conditions: global_dice >= {global_threshold}, class thresholds: {class_thresholds}")
+                #             print(f"Switching to: {new_loss_name}")
+                #             
+                #             # 새로운 criterion 생성
+                #             self.criterion = self.loss_selector.get_loss(new_loss_name, **new_loss_parameter)
+                #             self.loss_switched = True
+                #             
+                #             wandb.log({
+                #                 "val/loss_switched": 1,
+                #                 "val/loss_switch_epoch": epoch
+                #             }, step=epoch)
+                #     else:
+                #         # 조건 불만족 시 카운터 리셋
+                #         if self.consecutive_satisfied_epochs > 0:
+                #             print(f"Loss switch condition not met, resetting counter (was {self.consecutive_satisfied_epochs}/{consecutive_epochs})")
+                #         self.consecutive_satisfied_epochs = 0
+                
                 # scheduler가 ReduceLROnPlateau라면 validation과정에서 lr update
                 if self.scheduler_name == "ReduceLROnPlateau":
                     self.scheduler.step(avg_dice)
 
-            # scheduler가 ReduceLROnPlateau가 아니라면 매 Epoch 마다 Lr update
-            if self.scheduler_name != "ReduceLROnPlateau":
+            # scheduler가 ReduceLROnPlateau가 아니고 CosineAnnealingWarmupRestarts도 아닌 경우에만 매 Epoch 마다 Lr update
+            # CosineAnnealingWarmupRestarts는 train_epoch에서 매 배치마다 step() 호출
+            if self.scheduler_name != "ReduceLROnPlateau" and self.scheduler_name != "CosineAnnealingWarmupRestarts":
                 self.scheduler.step()

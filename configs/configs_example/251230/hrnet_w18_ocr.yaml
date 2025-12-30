@@ -1,7 +1,4 @@
 # HRNet-W18 configuration
-# ElasticTransform 포함, 3-stage loss switching: 0.3:0.7 → 0.2:0.8 → 0.1:0.9
-# multiplier: 1.0 (lr 조정 안 함)
-
 # data 관련 설정
 image_root: /data/ephemeral/home/dataset/train/DCM
 label_root: /data/ephemeral/home/dataset/train/outputs_json
@@ -9,12 +6,12 @@ label_root: /data/ephemeral/home/dataset/train/outputs_json
 # 모델명 및 사전 학습 여부
 model_name: HRNet
 model_parameter:
-  config_path: configs/mmseg_config_py_files/hrnet_w18_fcn.py
+  config_path: configs/mmseg_config_py_files/hrnet_w18_ocr.py
   num_classes: 29
 
 # batch_size
 train_batch_size: 2
-val_batch_size: 2
+val_batch_size: 1
 
 # val_num_worker 지정
 num_workers: 4
@@ -147,10 +144,10 @@ threshold: 0.5
 
 # checkpoint 저장 경로
 save_dir: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRNet_W18/251230
-checkpoint_name_format: "hrnet_w18_aug_elastic_3_stage-best_{epoch}epoch_{dice_score:.4f}.pt"
+checkpoint_name_format: "hrnet_w18_ocr-best_{epoch}epoch_{dice_score:.4f}.pt"
 
 # wandb
 team_name: cv_11
 project_name: cv-11-SEG
-experiment_detail: hrnet_w18_aug_elastic_3_stage
+experiment_detail: hrnet_w18_ocr
 

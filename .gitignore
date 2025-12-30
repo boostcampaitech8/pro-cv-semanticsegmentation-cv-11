@@ -8,23 +8,17 @@ data/*
 /lsj/src/__pycache__
 
 # jsw
-docs/
 mmsegmentation/
 segmentation_models.pytorch/
 
-configs/251227/
-configs/251228/
-configs/251229/
 configs/for_test/
 
-scripts/legacy_EDM
 scripts/custom_runners/
-
-visual/vis_results/
-loss/loss_for_class_weight_backup/
+scripts/visualizer/vis_results/
 logs/
 
-COMMIT_GUIDE.md
+docs/GIT_WORKFLOW.md
+docs/README_docs.md
 
 # general
 /checkpoints/Baseline/*

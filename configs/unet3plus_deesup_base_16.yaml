@@ -3,20 +3,20 @@ image_root: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/data/train/DC
 label_root: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/data/train/outputs_json
 
 # 모델명 및 사전 학습 여부
-model_name: Unet3PlusDeepSup
+model_name: Unet3Plus
 model_parameter:
   n_classes: 29
   final_activation: null
 
 # batch_size (4 or 2) 고정
-train_batch_size: 1
-val_batch_size: 1
+train_batch_size: 4
+val_batch_size: 4
 
 # val_num_worker 지정
 num_workers: 1
 
 # image resize 2048로 고정
-image_size: &image_size 1024
+image_size: &image_size 512
 
 # transform 관련
 train_transform:

@@ -1,0 +1,107 @@
+# HRNet-W18 configuration - Augmentation 실험: GaussNoise 추가
+# 의료용 손 뼈 데이터셋 특성 고려:
+# - 엑스레이 밝기 편차 대응
+# - 손목 각도 변화 모델링
+# - 실제 X-ray 노이즈 모델링을 위해 GaussNoise 추가
+
+# data 관련 설정
+image_root: /data/ephemeral/home/dataset/train/DCM
+label_root: /data/ephemeral/home/dataset/train/outputs_json
+
+# 모델명 및 사전 학습 여부
+model_name: HRNet
+model_parameter:
+  config_path: configs/mmseg/hrnet_w18_fcn.py
+  num_classes: 29
+
+# batch_size
+train_batch_size: 4
+val_batch_size: 8
+
+# val_num_worker 지정
+num_workers: 4
+
+# image resize
+image_size: &image_size 1024
+
+# transform 관련
+train_transform:
+  Resize:
+    width: *image_size
+    height: *image_size
+  ShiftScaleRotate:
+    shift_limit: 0.05
+    scale_limit: 0.05
+    rotate_limit: 5
+    p: 0.5
+  HorizontalFlip:
+    p: 0.5
+  CLAHE:
+    clip_limit: 2.0
+    tile_grid_size: [8, 8]
+    p: 0.2
+  RandomBrightnessContrast:
+    brightness_limit: 0.1
+    contrast_limit: 0.1
+    p: 0.2
+  GaussNoise:
+    var_limit: [1.0, 3.0]
+    p: 0.2
+
+val_transform:
+  Resize:
+    width: *image_size
+    height: *image_size
+  
+# 학습 관련 하이퍼파라미터
+lr: 1e-3
+weight_decay: 1e-6
+
+max_epoch: &max_epoch 30
+
+# loss 관련 설정
+loss_name: Mixed
+
+# combo loss 사용시
+loss_parameter:
+  losses:
+    - name: BCEWithLogitsLoss
+      weight: 0.3
+      params: {}
+    - name: DiceLoss
+      weight: 0.7
+      params:
+        smooth: 1e-5
+
+# scheduler 관련 설정
+scheduler_name: ReduceLROnPlateau
+
+# scheduler 필요한 parameter -> dict 형태로 작성
+scheduler_parameter:
+  mode: max
+  factor: 0.5
+  patience: 3
+  threshold: 0.005
+  threshold_mode: abs
+  min_lr: 1e-6
+
+# optimizer 관련 설정
+optimizer_name: adamw
+
+# random seed값
+seed: 21
+
+# validation 관련 인자
+val_fold: 0
+val_interval: 1
+threshold: 0.5
+
+# checkpoint 저장 경로
+save_dir: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRNet_W18/251228_aug
+checkpoint_name_format: "aug_gn-best_{epoch}epoch_{dice_score:.4f}.pt"
+
+# wandb
+team_name: cv_11
+project_name: cv-11-SEG
+experiment_detail: hrnet_w18-aug_gn
+

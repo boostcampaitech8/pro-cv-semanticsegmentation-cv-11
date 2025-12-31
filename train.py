@@ -123,6 +123,9 @@ def main(cfg):
     loss_selector = LossMixer()
     criterion = loss_selector.get_loss(cfg.loss_name, **cfg.loss_parameter)
 
+    # Loss switching 설정 (yaml에서 선택적으로 제공)
+    loss_switch_config = cfg.get('loss_switch', None)
+
     trainer = Trainer(
         model=model,
         device=device,
@@ -136,7 +139,9 @@ def main(cfg):
         max_epoch=cfg.max_epoch,
         save_dir=cfg.save_dir,
         val_interval=cfg.val_interval,
-        checkpoint_name_format=cfg.get('checkpoint_name_format', None)
+        checkpoint_name_format=cfg.get('checkpoint_name_format', None),
+        loss_selector=loss_selector,
+        loss_switch_config=loss_switch_config
     )
 
     trainer.train()

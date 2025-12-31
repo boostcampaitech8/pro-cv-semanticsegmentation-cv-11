@@ -1,4 +1,4 @@
-model = torch.load(os.path.join(SAVED_DIR, "unet3+_RLROP_CL_AdamW_1024_251224.pt"))
+model = torch.load(os.path.join(SAVED_DIR, "unet3+_RLROP_CL_AdamW_HF_251227.pt"))
 
 # 테스트 데이터 경로를 입력하세요
 
@@ -157,4 +157,4 @@ df = pd.DataFrame({
 
 df.head(30)
 
-df.to_csv("unet3+_RLROP_CL_AdamW_1024_251224.csv", index=False)
+df.to_csv("unet3+_RLROP_CL_AdamW_HF_251227.csv", index=False)

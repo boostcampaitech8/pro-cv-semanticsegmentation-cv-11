@@ -73,6 +73,52 @@ loss_parameter:
       params:
         smooth: 1e-5
 
+# 3-stage loss switching 설정
+loss_switch:
+  loss_stages:
+    stage1:  # 기본 stage (BCE:Dice = 0.8:0.2)
+      # stage1은 loss_name과 loss_parameter로 설정됨 (위에 정의됨)
+    
+    stage2:  # Stage 1 -> Stage 2 전환
+      enabled: true
+      conditions:
+        global_dice_threshold: 0.85  # avg_dice >= 0.85
+        class_dice_thresholds:  # 특정 클래스 dice >= threshold
+          Pisiform: 0.8
+          Trapezoid: 0.8
+        consecutive_epochs: 3  # 연속 3 에폭 만족 필요
+      loss:
+        loss_name: Mixed
+        loss_parameter:
+          losses:
+            - name: BCEWithLogitsLoss
+              weight: 0.5
+              params: {}
+            - name: DiceLoss
+              weight: 0.5
+              params:
+                smooth: 1e-5
+    
+    stage3:  # Stage 2 -> Stage 3 전환
+      enabled: true
+      conditions:
+        global_dice_threshold: 0.95  # avg_dice >= 0.95
+        class_dice_thresholds:  # 특정 클래스 dice >= threshold
+          Pisiform: 0.9
+          Trapezoid: 0.9
+        consecutive_epochs: 3  # 연속 3 에폭 만족 필요
+      loss:
+        loss_name: Mixed
+        loss_parameter:
+          losses:
+            - name: BCEWithLogitsLoss
+              weight: 0.2
+              params: {}
+            - name: DiceLoss
+              weight: 0.8
+              params:
+                smooth: 1e-5
+
 # scheduler 관련 설정
 scheduler_name: ReduceLROnPlateau
 
@@ -97,11 +143,11 @@ val_interval: 1
 threshold: 0.5
 
 # checkpoint 저장 경로
-save_dir: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRNet_W18/251228_unetpp_simple
-checkpoint_name_format: "hrnet_w18_unetpp_3e3_lr-{epoch}epoch_{dice_score:.4f}.pt"
+save_dir: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRNet_W18/251230
+checkpoint_name_format: "hrnet_w18_unetpp_loss_switching-{epoch}epoch_{dice_score:.4f}.pt"
 
 # wandb
 team_name: cv_11
 project_name: cv-11-SEG
-experiment_detail: hrnet_w18_unetpp_3e3_lr
+experiment_detail: hrnet_w18_unetpp_loss_switching
 

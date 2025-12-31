@@ -1,5 +1,6 @@
-# HRNet-W18 configuration example
-# This is an example config file for using HRNet with the project
+# HRNet-W18 configuration
+# ElasticTransform 포함, 3-stage loss switching: 0.3:0.7 → 0.2:0.8 → 0.1:0.9
+# multiplier: 1.0 (lr 조정 안 함)
 
 # data 관련 설정
 image_root: /data/ephemeral/home/dataset/train/DCM
@@ -8,12 +9,12 @@ label_root: /data/ephemeral/home/dataset/train/outputs_json
 # 모델명 및 사전 학습 여부
 model_name: HRNet
 model_parameter:
-  config_path: configs/mmseg/hrnet_w18_fcn.py
+  config_path: configs/mmseg_config_py_files/hrnet_w18_fcn.py
   num_classes: 29
 
 # batch_size
-train_batch_size: 4
-val_batch_size: 8
+train_batch_size: 2
+val_batch_size: 2
 
 # val_num_worker 지정
 num_workers: 4
@@ -62,6 +63,7 @@ max_epoch: &max_epoch 30
 loss_name: Mixed
 
 # combo loss 사용시
+# Stage 1: BCE:Dice = 0.3:0.7
 loss_parameter:
   losses:
     - name: BCEWithLogitsLoss
@@ -71,6 +73,54 @@ loss_parameter:
       weight: 0.7
       params:
         smooth: 1e-5
+
+# 3-stage loss switching 설정
+loss_switch:
+  loss_stages:
+    stage1:  # 기본 stage (BCE:Dice = 0.3:0.7)
+      # stage1은 loss_name과 loss_parameter로 설정됨 (위에 정의됨)
+    
+    stage2:  # Stage 1 -> Stage 2 전환
+      enabled: true
+      lr_multiplier: 1.0  # Stage 2 전환 시 lr 조정 안 함
+      conditions:
+        global_dice_threshold: 0.9550  # avg_dice >= 0.9550
+        class_dice_thresholds:  # 특정 클래스 dice >= threshold
+          Pisiform: 0.85
+          Trapezoid: 0.88
+        consecutive_epochs: 1  # 연속 1 에폭 만족 필요 (patience: 1)
+      loss:
+        loss_name: Mixed
+        loss_parameter:
+          losses:
+            - name: BCEWithLogitsLoss
+              weight: 0.2  # Dice 중심으로 전환
+              params: {}
+            - name: DiceLoss
+              weight: 0.8
+              params:
+                smooth: 1e-5
+    
+    stage3:  # Stage 2 -> Stage 3 전환
+      enabled: true
+      lr_multiplier: 1.0  # Stage 3 전환 시 lr 조정 안 함
+      conditions:
+        global_dice_threshold: 0.9650  # avg_dice >= 0.9650
+        class_dice_thresholds:  # 특정 클래스 dice >= threshold
+          Pisiform: 0.89
+          Trapezoid: 0.91
+        consecutive_epochs: 1  # 연속 1 에폭 만족 필요 (patience: 1)
+      loss:
+        loss_name: Mixed
+        loss_parameter:
+          losses:
+            - name: BCEWithLogitsLoss
+              weight: 0.1  # Dice에 거의 집중
+              params: {}
+            - name: DiceLoss
+              weight: 0.9
+              params:
+                smooth: 1e-5
 
 # scheduler 관련 설정
 scheduler_name: ReduceLROnPlateau
@@ -96,11 +146,11 @@ val_interval: 1
 threshold: 0.5
 
 # checkpoint 저장 경로
-save_dir: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRNet_W18/251229
-checkpoint_name_format: "aug_elastic-best_{epoch}epoch_{dice_score:.4f}.pt"
+save_dir: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRNet_W18/251230
+checkpoint_name_format: "hrnet_w18_aug_elastic_3_stage-best_{epoch}epoch_{dice_score:.4f}.pt"
 
 # wandb
 team_name: cv_11
 project_name: cv-11-SEG
-experiment_detail: hrnet_w18-aug_elastic
+experiment_detail: hrnet_w18_aug_elastic_3_stage
 

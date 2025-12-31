@@ -1,0 +1,19 @@
+{
+  "Pisiform": 0.30,
+  "Trapezoid": 0.35,
+  "Trapezium": 0.45,
+  "finger-2": 0.55,
+  "finger-3": 0.60,
+  "finger-6": 0.60,
+  "finger-7": 0.60,
+  "finger-9": 0.55,
+  "finger-10": 0.60,
+  "finger-13": 0.55,
+  "finger-14": 0.60,
+  "finger-15": 0.55,
+  "finger-18": 0.60,
+  "finger-19": 0.60,
+  "Scaphoid": 0.55,
+  "Radius": 0.65,
+  "Ulna": 0.65
+}

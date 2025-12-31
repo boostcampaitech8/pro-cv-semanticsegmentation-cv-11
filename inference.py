@@ -12,6 +12,14 @@ from tqdm.auto import tqdm
 from torch.utils.data import DataLoader
 from dataset import XRayInferenceDataset, CLASSES
 
+# TTA 사용 시에만 import
+try:
+    import ttach as tta
+    from ttach import HorizontalFlip
+    TTA_AVAILABLE = True
+except ImportError:
+    TTA_AVAILABLE = False
+
 # mask map으로 나오는 인퍼런스 결과를 RLE로 인코딩 합니다.
 def encode_mask_to_rle(mask):
     '''
@@ -44,10 +52,50 @@ def unwrap_for_infer(out):
     # DeepSup이면 d1만 사용
     return out[0] if isinstance(out, (tuple, list)) else out
 
-def inference(args, data_loader, class_thresholds=None):
+
+class ModelWithPostProcess(torch.nn.Module):
+    """모델 출력에 후처리(interpolate)를 적용하는 래퍼 (TTA 사용 시)"""
+    def __init__(self, model, target_size=(2048, 2048)):
+        super().__init__()
+        self.model = model
+        self.target_size = target_size
+    
+    def forward(self, x):
+        out = self.model(x)
+        out = unwrap_for_infer(out)  # tensor (B,C,H,W)
+        out = F.interpolate(out, size=self.target_size, mode="bilinear")
+        # sigmoid는 ttach의 merge 후에 적용 (ttach 기본 방식)
+        return out
+
+
+def inference(args, data_loader, class_thresholds=None, use_tta=False):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = torch.load(args.model).to(device)
     model.eval()
+    
+    # TTA 사용 시 설정
+    if use_tta:
+        if not TTA_AVAILABLE:
+            raise ImportError("ttach library is not installed. Please install it with: pip install ttach")
+        
+        # 후처리를 포함한 모델 래퍼 생성
+        model_wrapper = ModelWithPostProcess(model, target_size=(2048, 2048))
+        model_wrapper.eval()
+        
+        # TTA 적용
+        transforms = tta.Compose([
+            HorizontalFlip(),
+        ])
+        tta_model = tta.SegmentationTTAWrapper(
+            model_wrapper,
+            transforms,
+            merge_mode='mean'  # 평균
+        )
+        inference_model = tta_model
+        desc = "[Inference with TTA (ttach)...]"
+    else:
+        inference_model = model
+        desc = "[Inference...]"
     
     # 클래스별 threshold tensor 생성 - 반복문 밖에서 한 번만 생성하고 매 배치마다 재사용함.
     threshold_tensor = None
@@ -65,18 +113,27 @@ def inference(args, data_loader, class_thresholds=None):
     rles = []
     filename_and_class = []
     with torch.no_grad():
-        with tqdm(total=len(data_loader), desc="[Inference...]", disable=False) as pbar:
+        with tqdm(total=len(data_loader), desc=desc, disable=False) as pbar:
             for images, image_names in data_loader:
-                images = images.to(device)    
-                outputs = model(images)
-                outputs = unwrap_for_infer(outputs)  # tensor (B,C,H,W)
+                images = images.to(device)
                 
-                outputs = F.interpolate(outputs, size=(2048, 2048), mode="bilinear")
-                outputs = torch.sigmoid(outputs)
+                if use_tta:
+                    ### 사실 이거, class로 따로 안 묶고, 그냥 여기 안에서 tta 다 해버려도 되긴 함. ###
+
+                    # TTA 적용 (ttach 기본: logit space에서 평균)
+                    outputs = inference_model(images)  # (B, C, 2048, 2048) - logit space
+                    # sigmoid 적용 (ttach 기본 방식: 평균 후 sigmoid)
+                    outputs = torch.sigmoid(outputs)
+                else:
+                    # 일반 inference
+                    outputs = inference_model(images)
+                    outputs = unwrap_for_infer(outputs)  # tensor (B,C,H,W)
+                    outputs = F.interpolate(outputs, size=(2048, 2048), mode="bilinear")
+                    outputs = torch.sigmoid(outputs)
                 
                 # 클래스별 threshold 적용 시
                 if threshold_tensor is not None:
-                    # GPU에서 broadcasting으로 한 번에 처리(한 번에 안하고 하나씩 하면 속도 엄청 느려짐짐)
+                    # GPU에서 broadcasting으로 한 번에 처리(한 번에 안하고 하나씩 하면 속도 엄청 느려짐)
                     outputs = (outputs > threshold_tensor).detach().cpu().numpy()
                 else:
                     # 기본: 모든 클래스에 동일한 threshold 적용
@@ -100,7 +157,9 @@ if __name__=="__main__":
     parser.add_argument("--thr", type=float, default=0.5, help="Default threshold for all classes")
     parser.add_argument("--thr_dict", type=str, default=None, help="JSON file path for class-specific thresholds(ex. {\"Pisiform\": 0.3, \"Trapezoid\": 0.3})")
     parser.add_argument("--output", type=str, default="./output.csv")
-    parser.add_argument("--resize", type=int, default=512, help="Size to resize images (both width and height)")
+    parser.add_argument("--resize", type=int, default=1024, help="Size to resize images (both width and height)")
+    parser.add_argument("--batch_size", type=int, default=2, help="Batch size for inference")
+    parser.add_argument("--use_tta", action="store_true", help="Use Test Time Augmentation (TTA) with ttach library")
     args = parser.parse_args()
     
     # 클래스별 threshold 로드
@@ -125,13 +184,13 @@ if __name__=="__main__":
     
     test_loader = DataLoader(
         dataset=test_dataset, 
-        batch_size=2,
+        batch_size=args.batch_size,
         shuffle=False,
         num_workers=2,
         drop_last=False
     )
 
-    rles, filename_and_class = inference(args, test_loader, class_thresholds)
+    rles, filename_and_class = inference(args, test_loader, class_thresholds, use_tta=args.use_tta)
 
     classes, filename = zip(*[x.split("_") for x in filename_and_class])
     

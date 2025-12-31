@@ -54,6 +54,8 @@ class Trainer:
         self.threshold = threshold
         self.val_interval = val_interval
         self.checkpoint_name_format = checkpoint_name_format or "best_{epoch}epoch_{dice_score:.4f}.pt"
+        self.use_amp = True
+        self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
 
 
     def save_model(self, epoch, dice_score, before_path):
@@ -81,45 +83,52 @@ class Trainer:
         total_loss = 0.0
 
         #FP16
-        scaler = torch.cuda.amp.GradScaler(enabled=True)
+        # scaler = torch.cuda.amp.GradScaler(enabled=True)
 
         with tqdm(total=len(self.train_loader), desc=f"[Training Epoch {epoch}]", disable=False) as pbar:
             for images, masks in self.train_loader:
-                images, masks = images.to(self.device), masks.to(self.device)
-                self.optimizer.zero_grad()
+                images = images.to(self.device, non_blocking=True)
+                masks  = masks.to(self.device, non_blocking=True)
 
-                #FP16
-                with torch.cuda.amp.autocast(enabled=True):
+                # (중요) dtype 정리: BCE/Dice는 float mask가 안전
+                masks = masks.float()
+                # 만약 0/255라면 이거까지:
+                # masks = (masks > 0).float()
+
+                self.optimizer.zero_grad(set_to_none=True)
+
+                with torch.cuda.amp.autocast(enabled=self.use_amp):
                     outputs = self.model(images)
-                    if isinstance(outputs, (tuple, list)):
-                        d1, d2, d3, d4, d5 = outputs
-                        d1 = resize_to(d1, masks); d2 = resize_to(d2, masks); d3 = resize_to(d3, masks); d4 = resize_to(d4, masks); d5 = resize_to(d5, masks)
 
-                        loss = (1.0*self.criterion(d1,masks) + 0.4*self.criterion(d2,masks) + 0.3*self.criterion(d3,masks) + 0.2*self.criterion(d4,masks) + 0.1*self.criterion(d5,masks))
-                    else:
-                        outputs = resize_to(outputs, masks)   # ✅ 추가 (혹시 크기 다르면 대비)
-                        loss = self.criterion(outputs, masks)
-                
-                # 원본
-                # outputs = self.model(images)
-                # if isinstance(outputs, (tuple, list)):
-                #     d1, d2, d3, d4, d5 = outputs
-                #     d1 = resize_to(d1, masks); d2 = resize_to(d2, masks); d3 = resize_to(d3, masks); d4 = resize_to(d4, masks); d5 = resize_to(d5, masks)
+                # ✅ loss는 fp32로 계산 (AMP 불안정 해결 핵심)
+                if isinstance(outputs, (tuple, list)):
+                    d1, d2, d3, d4, d5 = outputs
+                    d1 = resize_to(d1, masks); d2 = resize_to(d2, masks); d3 = resize_to(d3, masks); d4 = resize_to(d4, masks); d5 = resize_to(d5, masks)
 
-                #     loss = (1.0*self.criterion(d1,masks) + 0.4*self.criterion(d2,masks) + 0.3*self.criterion(d3,masks) + 0.2*self.criterion(d4,masks) + 0.1*self.criterion(d5,masks))
-                # else:
-                #     outputs = resize_to(outputs, masks)   # ✅ 추가 (혹시 크기 다르면 대비)
-                #     loss = self.criterion(outputs, masks)
-                    
-                # FP16
-                scaler.scale(loss).backward()
-                scaler.step(self.optimizer)
-                scaler.update()
+                    loss = (1.0*self.criterion(d1.float(), masks) +
+                            0.4*self.criterion(d2.float(), masks) +
+                            0.3*self.criterion(d3.float(), masks) +
+                            0.2*self.criterion(d4.float(), masks) +
+                            0.1*self.criterion(d5.float(), masks))
+                else:
+                    outputs = resize_to(outputs, masks)
+                    loss = self.criterion(outputs.float(), masks)
 
-                # 원본
-                # self.optimizer.zero_grad()
-                # loss.backward()
-                # self.optimizer.step()
+                # (디버깅/안전) NaN/Inf 체크
+                if not torch.isfinite(loss):
+                    print("NaN/Inf loss!", loss.item())
+                    print("outputs:", outputs.dtype, outputs.min().item(), outputs.max().item())
+                    print("masks:", masks.dtype, masks.min().item(), masks.max().item())
+                    raise RuntimeError("Invalid loss")
+
+                if self.use_amp:
+                    self.scaler.scale(loss).backward()
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
+                else:
+                    loss.backward()
+                    self.optimizer.step()
+
 
                 total_loss += loss.item()
                 pbar.update(1)
@@ -148,7 +157,7 @@ class Trainer:
         with torch.no_grad():
             with tqdm(total=len(self.val_loader), desc=f'[Validation Epoch {epoch}]', disable=False) as pbar:
                 for images, masks in self.val_loader:
-                    images, masks = images.to(self.device), masks.to(self.device)
+                    images, masks = images.to(self.device), masks.to(self.device).float()
                     outputs = self.model(images)
                     if isinstance(outputs, (tuple, list)):
                         d1, d2, d3, d4, d5 = outputs

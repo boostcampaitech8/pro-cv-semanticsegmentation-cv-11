@@ -5,6 +5,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 import segmentation_models_pytorch as smp
     
+class UNet_3Plus(nn.Module):
+    def __init__(self,
+                 **kwargs):
+        super(UNet_3Plus, self).__init__()
+        self.model = UNet_3Plus(**kwargs)
+
+    def forward(self, x: torch.Tensor):
+        return self.model(x)
+    
 class UNet_3Plus_dsp(nn.Module):
     def __init__(self,
                  **kwargs):
@@ -15,13 +24,6 @@ class UNet_3Plus_dsp(nn.Module):
         return self.model(x)
     
 
-# elif MODEL_ARCH == "unet3plus_deepsup":
-#     # ⚠️ (d1,d2,d3,d4,d5) 튜플 반환
-#     model = UNet_3Plus_DeepSup(
-#         in_channels=3,
-#         n_classes=NUM_CLASSES,
-#         final_activation=None,
-#     )
 
 """
 UNet 3+ (UNet_3Plus) implementation.

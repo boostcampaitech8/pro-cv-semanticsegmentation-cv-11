@@ -83,7 +83,7 @@ def main(cfg):
         dataset=train_dataset, 
         batch_size=cfg.train_batch_size,
         shuffle=True,
-        num_workers=8,
+        num_workers=1,
         drop_last=True,
 
     )

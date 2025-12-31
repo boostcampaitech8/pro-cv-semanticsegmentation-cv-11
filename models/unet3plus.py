@@ -113,7 +113,7 @@ class UNet_3Plus(nn.Module):
         feature_scale: int = 4,
         is_deconv: bool = True,
         is_batchnorm: bool = True,
-        final_activation: str | None = None,  # None or "sigmoid"
+        final_activation: str | None = "sigmoid",  # None or "sigmoid"
     ):
         super().__init__()
         self.is_deconv = is_deconv

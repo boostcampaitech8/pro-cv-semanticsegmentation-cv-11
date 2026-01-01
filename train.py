@@ -83,7 +83,7 @@ def main(cfg):
         dataset=train_dataset, 
         batch_size=cfg.train_batch_size,
         shuffle=True,
-        num_workers=1,
+        num_workers=1, # 8 / 이거 줄이면 속도 엄청나게 감소함 / 1로 하니까 약 4배 느려짐
         drop_last=True,
 
     )

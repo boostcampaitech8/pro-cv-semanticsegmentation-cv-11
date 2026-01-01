@@ -15,8 +15,9 @@ PROJECT_ROOT="/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11"
 # 학습할 config 파일 목록 (순서대로 실행)
 # 단일 config만 사용하려면 하나만 남기고 나머지는 주석 처리
 CONFIGS=(
-    "/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/configs/configs_example/251231/hrnet_w48_multiplier_0.5_thr_0.8.yaml"
-    "/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/configs/configs_example/251231/hrnet_w18_ocr_multiplier_0.5_thr_0.8.yaml"
+    "/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/configs/configs_example/260101/unetpp_plateau_focal_tversky_dice.yaml"
+    # "/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/configs/configs_example/260101/hrnet_w48_ocr_cosinewarmup_50e.yaml"
+    # "/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/configs/configs_example/251231/hrnet_w18_ocr_multiplier_0.5_thr_0.8.yaml"
     # "/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/configs/251230/hrnet_w18_stage_threshold_high_5050.yaml"
 )
 

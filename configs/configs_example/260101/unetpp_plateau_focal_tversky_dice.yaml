@@ -1,0 +1,113 @@
+# 테스트용: UnetPlusPlus + ReduceLROnPlateau + FocalTversky + Dice Loss
+
+# data 관련 설정
+image_root: /data/ephemeral/home/dataset/train/DCM
+label_root: /data/ephemeral/home/dataset/train/outputs_json
+
+# 모델명 및 사전 학습 여부
+model_name: Unet3PlusDeepSup
+model_parameter:
+  in_channels: 3
+  n_classes: 29
+  final_activation: null  # logits 반환 (None)
+
+# batch_size (테스트용으로 다른 배치사이즈 사용)
+train_batch_size: 4
+val_batch_size: 2
+
+# val_num_worker 지정
+num_workers: 4
+
+# image resize
+image_size: &image_size 1024
+
+# transform 관련
+train_transform:
+  Resize:
+    width: *image_size
+    height: *image_size
+  ShiftScaleRotate:
+    shift_limit: 0.05
+    scale_limit: 0.05
+    rotate_limit: 5
+    p: 0.5
+  HorizontalFlip:
+    p: 0.5
+  ElasticTransform:
+    alpha: 50
+    sigma: 5
+    alpha_affine: 10
+    p: 0.2
+  CLAHE:
+    clip_limit: 2.0
+    tile_grid_size: [8, 8]
+    p: 0.2
+  RandomBrightnessContrast:
+    brightness_limit: 0.1
+    contrast_limit: 0.1
+    p: 0.2
+
+val_transform:
+  Resize:
+    width: *image_size
+    height: *image_size
+
+# 학습 관련 하이퍼파라미터
+lr: 1e-3
+weight_decay: 1e-6
+
+max_epoch: &max_epoch 30
+
+# loss 관련 설정
+loss_name: Mixed
+
+# FocalTversky + Dice loss 조합
+loss_parameter:
+  losses:
+    - name: FocalTverskyLoss
+      weight: 0.5
+      params:
+        alpha: 0.3
+        beta: 0.7
+        gamma: 2.0
+        smooth: 1e-5
+    - name: DiceLoss
+      weight: 0.5
+      params:
+        smooth: 1e-5
+
+# scheduler 관련 설정
+scheduler_name: CosineAnnealingLR
+
+# scheduler 필요한 parameter -> dict 형태로 작성
+# CosineAnnealingLR 파라미터:
+# - T_max: 최대 에폭 수 (max_epoch와 동일하게 설정)
+# - eta_min: 최소 learning rate
+scheduler_parameter:
+  T_max: 30  # max_epoch와 동일
+  eta_min: 1e-6  # 최소 learning rate
+
+# optimizer 관련 설정
+optimizer_name: adamw
+
+# random seed값
+seed: 21
+
+# validation 관련 인자
+val_fold: 0
+val_interval: 1
+threshold: 0.5
+
+# checkpoint 저장 경로
+save_dir: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/UnetPlusPlus/260101
+checkpoint_name_format: "unetpp_plateau_focal_tversky_dice-best_{epoch}epoch_{dice_score:.4f}.pt"
+
+# wandb
+team_name: cv_11
+project_name: cv-11-SEG
+auto_run_name: true  # 자동으로 run name 생성
+run_name_decoder: unet3plusdeepsup  # decoder 이름 (run name에 사용)
+run_name_backbone: none  # backbone 이름 (run name에 사용, Unet3PlusDeepSup은 encoder 없음)
+run_name_exp_id: v2  # 실험 ID (run name에 사용)
+# experiment_detail: unet3plus_plateau_focal_tversky_dice  # auto_run_name이 false일 때만 사용
+

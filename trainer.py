@@ -221,6 +221,8 @@ class Trainer:
         # set_seed()
 
         best_dice = 0.
+        best_epoch = 0
+        best_model_path = ""
         before_path = ""
         
         for epoch in range(1, self.max_epoch + 1):
@@ -239,7 +241,15 @@ class Trainer:
 
             # validation 주기에 따라 loss를 출력하고 best model을 저장합니다.
             if epoch % self.val_interval == 0:
-                avg_dice, dices_per_class, val_loss = self.validation(epoch)
+                
+                ### 260101 OOM 테스트용 추가 ###
+                print("Before val:", torch.cuda.memory_reserved() / 1e9)
+                avg_dice, dices_per_class, val_loss = self.validation(epoch) # 얘는 원래 있던 놈
+                print("After val:", torch.cuda.memory_reserved() / 1e9)
+                torch.cuda.empty_cache()
+                print("After empty_cache:", torch.cuda.memory_reserved() / 1e9)
+                ###########################
+                
                 val_log = {
                     "val/loss": val_loss,
                     "val/avg_dice": avg_dice,
@@ -259,7 +269,9 @@ class Trainer:
                 if best_dice < avg_dice:
                     print(f"Best performance at epoch: {epoch}, {best_dice:.4f} -> {avg_dice:.4f}\n")
                     best_dice = avg_dice
+                    best_epoch = epoch
                     before_path = self.save_model(epoch, best_dice, before_path)
+                    best_model_path = before_path
                 
                 # 3-stage loss switching 체크
                 if (self.loss_stages_config is not None and 
@@ -481,3 +493,16 @@ class Trainer:
             # CosineAnnealingWarmupRestarts는 train_epoch에서 매 배치마다 step() 호출
             if self.scheduler_name != "ReduceLROnPlateau" and self.scheduler_name != "CosineAnnealingWarmupRestarts":
                 self.scheduler.step()
+        
+        # 학습 종료 후 최종 결과 출력
+        print("\n" + "="*80)
+        print("Training Completed!")
+        print("="*80)
+        if best_epoch > 0:
+            print(f"Best Model Information:")
+            print(f"  - Epoch: {best_epoch}")
+            print(f"  - val_dice : {best_dice:.4f}")
+            print(f"  - Model saved path: {osp.abspath(best_model_path)}")
+        else:
+            print("Warning: No best model was saved during training.")
+        print("="*80 + "\n")

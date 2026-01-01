@@ -4,6 +4,7 @@
 import segmentation_models_pytorch as smp
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 import segmentation_models_pytorch as smp
+from cosine_annealing_warmup import CosineAnnealingWarmupRestarts
 
 import os, sys
 sys.path.append(os.getcwd())  # ✅ 프로젝트 루트를 path에 추가
@@ -144,6 +145,18 @@ scheduler = ReduceLROnPlateau(
     min_lr=1e-7,
     verbose=True,
 )
+
+# scheduler = CosineAnnealingWarmupRestarts(optimizer, first_cycle_steps=800, 
+#                                           # 10 epochs worth of steps 
+#                                           cycle_mult=1.0, 
+#                                           # # Same cycle length 
+#                                           max_lr=LR, 
+#                                           # # Use current LR (5e-4) as max 
+#                                           min_lr=1e-6, 
+#                                           # # Minimum LR 
+#                                           warmup_steps=1, 
+#                                           # # ~5-10% of first cycle for warmup 50 
+#                                           gamma=0.5)
 
 # 시드를 설정합니다.
 set_seed()

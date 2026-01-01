@@ -6,7 +6,7 @@ def dice_coef(y_true, y_pred):
     eps = 0.0001
     return (2. * intersection + eps) / (torch.sum(y_true_f, -1) + torch.sum(y_pred_f, -1) + eps)
 
-def save_model(model, file_name='unet3+_RLROP_CL_AdamW_1024_251224.pt'):
+def save_model(model, file_name='unet3+_RLROP_CL_AdamW_HF_251227.pt'):
     output_path = os.path.join(SAVED_DIR, file_name)
     torch.save(model, output_path)
 

@@ -1,4 +1,5 @@
 from .bce import MyBCELoss
+from .softbce import MySoftBCELoss
 from .dice import MyDiceLoss
 from .jaccard import MyJaccardLoss
 from .focal import MyFocalLoss
@@ -10,6 +11,7 @@ class LossMixer():
     def __init__(self) -> None:
         self.loss_classes = {
             "BCEWithLogitsLoss" : MyBCELoss,
+            "SoftBCEWithLogitsLoss" : MySoftBCELoss,
             "DiceLoss": MyDiceLoss,
             "JaccardLoss": MyJaccardLoss,
             "FocalLoss": MyFocalLoss,

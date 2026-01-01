@@ -9,19 +9,15 @@ HRNet을 사용하기 위해서는 mmsegmentation과 mmcv가 필요합니다:
 ```bash
 # mmcv 설치
 pip install -U openmim
+
 mim install mmengine
-# mim install "mmcv>=2.0.0" -> 에러 발생, https://github.com/open-mmlab/mmcv/issues/3096 대신
 mim install "mmcv==2.1.0"
-(mmsegmentation 폴더는 참고 용으로 clone한 거고 저기서 install하진 않을 거임 무시)
-(적은 것 외의 의존성 문제 발생할수도 있음 흠...)
 
-# mmsegmentation 설치
-pip install "mmsegmentation>=1.0.0"
-
-# 이후 의존성 문제 대량 발생...
-# 아래 코드들 입력해서 직접 requirements.txt 입력하니 해결은 됨.
+# mmsegmentation repo clone
 git clone https://github.com/open-mmlab/mmsegmentation.git
 cd mmsegmentation
+
+# requirements 설치
 pip install -r requirements.txt
 cd ..
 

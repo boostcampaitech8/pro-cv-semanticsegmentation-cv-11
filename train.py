@@ -115,9 +115,33 @@ def main(cfg):
         weight_decay=cfg.weight_decay
     )
     
+    # CosineAnnealingWarmupRestarts의 경우 steps 자동 계산
+    scheduler_parameter = dict(cfg.scheduler_parameter) if cfg.scheduler_parameter else {}
+    if cfg.scheduler_name == "CosineAnnealingWarmupRestarts":
+        steps_per_epoch = len(train_loader)
+        
+        # yaml에서 warmup_epochs와 cycle_epochs를 읽거나 기본값 사용
+        warmup_epochs = scheduler_parameter.pop('warmup_epochs', 1)
+        cycle_epochs = scheduler_parameter.pop('cycle_epochs', 5)
+        
+        # 자동 계산
+        warmup_steps = steps_per_epoch * warmup_epochs
+        first_cycle_steps = steps_per_epoch * (warmup_epochs + cycle_epochs)
+        
+        # 기존 값이 있으면 덮어쓰지 않고, 없으면 자동 계산값 사용
+        if 'warmup_steps' not in scheduler_parameter:
+            scheduler_parameter['warmup_steps'] = warmup_steps
+        if 'first_cycle_steps' not in scheduler_parameter:
+            scheduler_parameter['first_cycle_steps'] = first_cycle_steps
+        
+        print(f"[Scheduler Auto-calculation] steps_per_epoch: {steps_per_epoch}, "
+              f"warmup_epochs: {warmup_epochs}, cycle_epochs: {cycle_epochs}")
+        print(f"[Scheduler Auto-calculation] warmup_steps: {scheduler_parameter['warmup_steps']}, "
+              f"first_cycle_steps: {scheduler_parameter['first_cycle_steps']}")
+    
     # scheduler 선택
     scheduler_selector = SchedulerPicker(optimizer)
-    scheduler = scheduler_selector.get_scheduler(cfg.scheduler_name, **cfg.scheduler_parameter)
+    scheduler = scheduler_selector.get_scheduler(cfg.scheduler_name, **scheduler_parameter)
     
     # loss 선택
     loss_selector = LossMixer()

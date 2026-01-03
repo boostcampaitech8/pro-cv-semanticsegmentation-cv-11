@@ -3,7 +3,7 @@ image_root: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/data/train/DC
 label_root: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/data/train/outputs_json
 
 # 모델명 및 사전 학습 여부
-model_name: Unet3Plus
+model_name: Unet3PlusDeepSup
 model_parameter:
   n_classes: 29
   final_activation: null
@@ -11,9 +11,10 @@ model_parameter:
 # batch_size (4 or 2) 고정
 train_batch_size: 4
 val_batch_size: 4
+accum_steps: 2   # 추가, 근데 bn에 따라 영향을 받는다곤 하는데, 흠,,, 
 
 # val_num_worker 지정
-num_workers: 1
+num_workers: 4
 
 # image resize 2048로 고정
 image_size: &image_size 512
@@ -53,20 +54,21 @@ loss_parameter:
     - name: DiceLoss
       weight: 0.7
       params:
-        smooth: 1e-5
+        smooth: 1e-4
 
 # scheduler 관련 설정
-scheduler_name: ReduceLROnPlateau
+scheduler_name: CosineAnnealingWarmupRestarts
 
 # scheduler 필요한 parameter -> dict 형태로 작성
+# 1 cycle: 30 에폭 전체를 단일 사이클로 설정
+# first_cycle_steps = warmup(320) + 29 에폭(9280) = 9600
 scheduler_parameter:
-  mode: max
-  factor: 0.5
-  patience: 1
-  threshold: 0.005
-  threshold_mode: abs
-  min_lr: 1e-6
-
+  first_cycle_steps: 2240  # warmup(320) + 29 에폭(9280) = 30 에폭 (1 사이클)
+  warmup_steps: 320  # 1 에폭 (320 steps)
+  max_lr: 3e-3  # 초기 learning rate
+  min_lr: 1e-6  # 최소 learning rate
+  cycle_mult: 1.0  # 사이클 배수 (1.0이면 동일한 사이클 반복)
+  gamma: 0.6  # 감쇠 계수 (1 사이클이므로 사용되지 않음)
 # optimizer 관련 설정
 optimizer_name: adamw
 
@@ -75,14 +77,14 @@ seed: 21
 
 # validation 관련 인자 0번 폴드로 고정
 val_fold: 0
-val_interval: 1
+val_interval: 2
 threshold: 0.5
 
 # checkpoint 저장 경로
-save_dir: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/unet3plus_base_1024
+save_dir: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/unet3plus_deepsup_512_acc2_bs4
 
 # wandb
 team_name: cv_11
 project_name: cv-11-SEG
-experiment_detail: unet3plus_base_1024
+experiment_detail: unet3plus_deepsup_512_acc2_bs4
 # experiment_detail: 실험 detail 입력 # 숫자, 문자, -, _, . 만 가능 (space 불가)

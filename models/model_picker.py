@@ -1,5 +1,5 @@
 from .unetplusplus import UnetPlusPlus
-from .unet3plus import UNet_3Plus_dsp, UNet_3Plus
+from .unet3plus import UNet_3Plus_dsp, UNet_3Plus, UNet_3Plus_dsp_ck
 from .segformer import Segformer
 from .hrnet import HRNet
 
@@ -9,6 +9,7 @@ class ModelPicker():
             "UnetPlusPlus": UnetPlusPlus,
             "Unet3Plus": UNet_3Plus,
             "Unet3PlusDeepSup": UNet_3Plus_dsp,
+            "Unet3PlusDeepSupCheck": UNet_3Plus_dsp_ck,
             "SegFormer": Segformer,
             "HRNet": HRNet
         }

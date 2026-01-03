@@ -40,7 +40,9 @@ class Trainer:
                  val_interval: int,
                  checkpoint_name_format: str = None,
                  loss_selector = None,
-                 loss_switch_config: dict = None):
+                 loss_switch_config: dict = None,
+                 accum_steps: int = 1 
+                ):
         self.model = model
         self.device = device
         self.wandb_run = wandb_run
@@ -68,8 +70,10 @@ class Trainer:
         self.current_stage = 1  # 현재 stage (1, 2, 3)
         self.stage2_consecutive = 0  # Stage 2 전환을 위한 연속 만족 카운터
         self.stage3_consecutive = 0  # Stage 3 전환을 위한 연속 만족 카운터
-        self.use_amp = True
+        # self.use_amp = True
+        self.use_amp = False
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
+        self.accum_steps = accum_steps
 
 
     def save_model(self, epoch, dice_score, before_path):
@@ -95,6 +99,8 @@ class Trainer:
         train_start = time.time()
         self.model.train()
         total_loss = 0.0
+
+        self.optimizer.zero_grad(set_to_none=True)
         
         # 에포크 시작 시 현재 LR 및 Stage 출력
         current_lr = self.optimizer.param_groups[0]['lr']
@@ -105,54 +111,68 @@ class Trainer:
         # scaler = torch.cuda.amp.GradScaler(enabled=True)
 
         with tqdm(total=len(self.train_loader), desc=f"[Training Epoch {epoch}]", disable=False) as pbar:
-            for images, masks in self.train_loader:
+            for step, (images, masks) in enumerate(self.train_loader):
                 images = images.to(self.device, non_blocking=True)
                 masks  = masks.to(self.device, non_blocking=True)
 
                 # (중요) dtype 정리: BCE/Dice는 float mask가 안전
                 masks = masks.float()
                 # 만약 0/255라면 이거까지:
-                # masks = (masks > 0).float()
+                masks = (masks > 0).float()
 
-                self.optimizer.zero_grad(set_to_none=True)
+                if step == 0 and epoch == 1:
+                    print("mask min/max:", masks.min().item(), masks.max().item())
+                    print("mask unique:", torch.unique(masks)[:10])
+                    
+                    print("masks:", masks.shape)
 
                 with torch.cuda.amp.autocast(enabled=self.use_amp):
                     outputs = self.model(images)
+                    # print("output shape:", outputs.shape)
 
                 # ✅ loss는 fp32로 계산 (AMP 불안정 해결 핵심)
-                if isinstance(outputs, (tuple, list)):
-                    d1, d2, d3, d4, d5 = outputs
-                    d1 = resize_to(d1, masks); d2 = resize_to(d2, masks); d3 = resize_to(d3, masks); d4 = resize_to(d4, masks); d5 = resize_to(d5, masks)
+                with torch.cuda.amp.autocast(enabled=False):
+                    if isinstance(outputs, (tuple, list)):
+                        d1, d2, d3, d4, d5 = outputs
+                        d1 = resize_to(d1, masks); d2 = resize_to(d2, masks); d3 = resize_to(d3, masks); d4 = resize_to(d4, masks); d5 = resize_to(d5, masks)
 
-                    loss = (1.0*self.criterion(d1.float(), masks) +
-                            0.4*self.criterion(d2.float(), masks) +
-                            0.3*self.criterion(d3.float(), masks) +
-                            0.2*self.criterion(d4.float(), masks) +
-                            0.1*self.criterion(d5.float(), masks))
-                else:
-                    outputs = resize_to(outputs, masks)
-                    loss = self.criterion(outputs.float(), masks)
+                        loss = (1.0*self.criterion(d1.float(), masks) +
+                                0.4*self.criterion(d2.float(), masks) +
+                                0.3*self.criterion(d3.float(), masks) +
+                                0.2*self.criterion(d4.float(), masks) +
+                                0.1*self.criterion(d5.float(), masks))
+                    else:
+                        outputs = resize_to(outputs, masks)
+                        loss = self.criterion(outputs.float(), masks)
 
-                # (디버깅/안전) NaN/Inf 체크
-                if not torch.isfinite(loss):
-                    print("NaN/Inf loss!", loss.item())
-                    print("outputs:", outputs.dtype, outputs.min().item(), outputs.max().item())
-                    print("masks:", masks.dtype, masks.min().item(), masks.max().item())
-                    raise RuntimeError("Invalid loss")
+                # 🔥 accumulation 핵심
+                loss = loss / self.accum_steps
 
                 if self.use_amp:
                     self.scaler.scale(loss).backward()
-                    self.scaler.step(self.optimizer)
-                    self.scaler.update()
+                    # self.scaler.step(self.optimizer)
+                    # self.scaler.update()
                 else:
                     loss.backward()
-                    self.optimizer.step()
+                    # self.optimizer.step()
 
-                # CosineAnnealingWarmupRestarts는 step 단위로 동작하므로 매 배치마다 step() 호출
-                if self.scheduler_name == "CosineAnnealingWarmupRestarts":
-                    self.scheduler.step()
+                if (step + 1) % self.accum_steps == 0 or (step + 1) == len(self.train_loader):
+                    if self.use_amp:
+                        self.scaler.step(self.optimizer)
+                        self.scaler.update()
+                    else:
+                        self.optimizer.step()
 
-                total_loss += loss.item()
+                    self.optimizer.zero_grad(set_to_none=True)
+
+                    # CosineAnnealingWarmupRestarts는 step 단위로 동작하므로 매 배치마다 step() 호출
+                    if self.scheduler_name == "CosineAnnealingWarmupRestarts":
+                        self.scheduler.step()
+
+
+
+                # total_loss += loss.item()
+                total_loss += loss.item() * self.accum_steps
                 pbar.update(1)
                 pbar.set_postfix(loss=loss.item())
             

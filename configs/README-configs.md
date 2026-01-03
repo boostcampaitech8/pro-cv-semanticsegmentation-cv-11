@@ -106,6 +106,10 @@ model_parameter:
 # 배치 사이즈
 train_batch_size: 2
 val_batch_size: 2
+# new
+accum_steps: 1
+# batch size가 2여도, *accum_steps 만큼의 배치사이즈 효과를 볼 수 있다곤 합니다 (BatchNorm 문제가 있다곤 하는데, 노션에 정리예정)
+# batch size가 2 이하일땐 권장하지 않습니다.
 
 # 학습 하이퍼파라미터
 lr: 0.001

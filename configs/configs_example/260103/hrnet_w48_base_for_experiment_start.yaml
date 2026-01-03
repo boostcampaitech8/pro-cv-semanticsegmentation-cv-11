@@ -23,9 +23,10 @@ image_size: &image_size 1024
 
 # 손목 crop 설정
 wrist_crop:
-  enabled: False  # false면 crop 안 함(기본: false)
-  # min_size: 128  # 최소 크기(pixels)
-  # margin_frac: 0.15  # margin 비율(0.15 = 15%)
+  enabled: True  # false면 crop 안 함(기본: false)
+  mode: crop_only  # "concat"(원본+crop) 또는 "crop_only"(crop만 사용)
+  min_size: 128  # 최소 크기(pixels)
+  margin_frac: 0.15  # margin 비율(0.15 = 15%)
 
 # transform 관련
 train_transform:

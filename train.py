@@ -11,10 +11,10 @@ import argparse
 
 from tqdm.auto import tqdm
 from trainer import Trainer
-from dataset import XRayDataset
+from dataset import XRayDataset, WristCropDataset
 from omegaconf import OmegaConf
 from utils.wandb import set_wandb
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, ConcatDataset
 from loss.loss_mixer import LossMixer
 from scheduler.scheduler_picker import SchedulerPicker
 from optimizers.optimizer_picker import OptimizerPicker 
@@ -63,14 +63,35 @@ def main(cfg):
     val_transform = [getattr(A, aug)(**params) 
                                          for aug, params in cfg.val_transform.items()]
 
-    train_dataset = XRayDataset(fnames,
-                                labels,
-                                cfg.image_root,
-                                cfg.label_root,
-                                fold=cfg.val_fold,
-                                transforms=train_transforms,
-                                is_train=True)
+    # Train dataset (원본)
+    train_dataset_full = XRayDataset(fnames,
+                                     labels,
+                                     cfg.image_root,
+                                     cfg.label_root,
+                                     fold=cfg.val_fold,
+                                     transforms=train_transforms,
+                                     is_train=True)
     
+    # Wrist crop 옵션 확인
+    wrist_crop_config = cfg.get('wrist_crop', {})
+    if wrist_crop_config.get('enabled', False):
+        train_dataset_wrist = WristCropDataset(fnames,
+                                              labels,
+                                              cfg.image_root,
+                                              cfg.label_root,
+                                              fold=cfg.val_fold,
+                                              transforms=train_transforms,
+                                              is_train=True,
+                                              min_size=wrist_crop_config.get('min_size', 128),
+                                              margin_frac=wrist_crop_config.get('margin_frac', 0.15))
+        train_dataset = ConcatDataset([train_dataset_full, train_dataset_wrist])
+        print(f"[Wrist Crop] Enabled - min_size: {wrist_crop_config.get('min_size', 128)}, "
+              f"margin_frac: {wrist_crop_config.get('margin_frac', 0.15)}")
+        print(f"[Wrist Crop] Train dataset size: {len(train_dataset_full)} (full) + {len(train_dataset_wrist)} (crop) = {len(train_dataset)}")
+    else:
+        train_dataset = train_dataset_full
+    
+    # Valid dataset (crop 사용 안 함)
     valid_dataset = XRayDataset(fnames,
                                 labels,
                                 cfg.image_root,
@@ -83,7 +104,7 @@ def main(cfg):
         dataset=train_dataset, 
         batch_size=cfg.train_batch_size,
         shuffle=True,
-        num_workers=1, # 8 / 이거 줄이면 속도 엄청나게 감소함 / 1로 하니까 약 4배 느려짐
+        num_workers=8, # 8 / 이거 줄이면 속도 엄청나게 감소함 / 1로 하니까 약 4배 느려짐
         drop_last=True,
 
     )
@@ -104,6 +125,32 @@ def main(cfg):
     model_selector = ModelPicker()
     model = model_selector.get_model(cfg.model_name, **cfg.model_parameter)
 
+    # 체크포인트에서 가중치 로드
+    checkpoint_path = cfg.get('resume_from', None)
+    if checkpoint_path:
+        if not osp.exists(checkpoint_path):
+            raise FileNotFoundError(f"Checkpoint file not found: {checkpoint_path}")
+        
+        print(f"[Resume] Loading checkpoint from: {checkpoint_path}")
+        checkpoint = torch.load(checkpoint_path, map_location=device)
+        
+        # 전체 모델이 저장된 경우
+        if isinstance(checkpoint, torch.nn.Module):
+            model = checkpoint
+            print("[Resume] Loaded entire model from checkpoint")
+        # state_dict만 저장된 경우
+        elif isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
+            model.load_state_dict(checkpoint['state_dict'])
+            print("[Resume] Loaded model state_dict from checkpoint")
+        # state_dict가 직접 저장된 경우
+        elif isinstance(checkpoint, dict):
+            model.load_state_dict(checkpoint)
+            print("[Resume] Loaded model state_dict from checkpoint")
+        else:
+            # 기타 경우: 전체 모델로 간주
+            model = checkpoint
+            print("[Resume] Loaded entire model from checkpoint (fallback)")
+    
     model.to(device)
 
     # optimizer는 선택

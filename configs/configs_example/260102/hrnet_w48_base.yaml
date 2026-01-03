@@ -1,5 +1,5 @@
 # multiplier 1.0, 1 에폭 warmup, 5 에폭 주기로 70% 감소
-# train 640개, val 160개, batch_size train 2, val 1
+# train 640개, val 160개, batch_size train 8, val 8
 
 # data 관련 설정
 image_root: /data/ephemeral/home/dataset/train/DCM
@@ -12,11 +12,11 @@ model_parameter:
   num_classes: 29
 
 # batch_size
-train_batch_size: 2
+train_batch_size: 4
 val_batch_size: 4
 
 # val_num_worker 지정
-num_workers: 4
+num_workers: 4  
 
 # image resize
 image_size: &image_size 1024
@@ -104,7 +104,7 @@ loss_switch:
       enabled: true
       lr_multiplier: 1.0  # multiplier 1.0 (LR 조정 안 함)
       conditions:
-        global_dice_threshold: 0.95 
+        global_dice_threshold: 0.96 
         # class_dice_thresholds:  # 특정 클래스 dice >= threshold
         #   Pisiform: 0.89
         #   Trapezoid: 0.91
@@ -133,12 +133,12 @@ scheduler_name: CosineAnnealingWarmupRestarts
 # - cycle_mult: 사이클 배수 (1.0이면 동일한 사이클 반복)
 # - gamma: 감쇠 계수 (0.7이면 각 사이클마다 lr이 70%로 감소)
 # 
-# 설정: train 640개, batch_size 2, 1 에폭당 320 steps
-#       warmup 320 스텝(1 에폭) 후 5 에폭 주기로 70% 감소
-#       first_cycle_steps = warmup(320) + 5 에폭(1600) = 1920 steps
+# 설정: train 640개, batch_size 8, 1 에폭당 80 steps
+#       warmup 80 스텝(1 에폭) 후 5 에폭 주기로 70% 감소
+#       first_cycle_steps = warmup(80) + 5 에폭(400) = 480 steps
 scheduler_parameter:
-  first_cycle_steps: 1920  # 320 * (1 + 5) = 1 에폭 warmup + 5 에폭 주기
-  warmup_steps: 320  # 1 에폭 (640 / 2 = 320 steps)
+  first_cycle_steps: 960  # 160 * (1 + 5) = 1 에폭 warmup + 5 에폭 주기
+  warmup_steps: 160  # 1 에폭 (640 / 8 = 80 steps)
   max_lr: 1e-3  # 초기 learning rate
   min_lr: 1e-6  # 최소 learning rate
   cycle_mult: 1.0  # 사이클 배수 (1.0이면 동일한 사이클 반복)
@@ -157,10 +157,14 @@ threshold: 0.5
 
 # checkpoint 저장 경로
 save_dir: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRNet_W48
-checkpoint_name_format: "hrnet_w48_cosinewarmup_50e-best_{epoch}epoch_{dice_score:.4f}.pt"
+checkpoint_name_format: "hrnet_w48_v1-best_{epoch}epoch_{dice_score:.4f}.pt"
 
 # wandb
 team_name: cv_11
 project_name: cv-11-SEG
-experiment_detail: hrnet_w48_cosinewarmup_50e
+auto_run_name: true  # 자동으로 run name 생성
+run_name_decoder: fcnhead  # decoder 이름 (run name에 사용)
+run_name_backbone: hrnet_w48  # backbone 이름 (run name에 사용)
+run_name_exp_id: v2-mult_1.0  # 실험 ID (run name에 사용)
+# experiment_detail: hrnet_w48_cosinewarmup_batch_8_8  # auto_run_name이 false일 때만 사용
 

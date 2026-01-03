@@ -20,7 +20,7 @@ import torch
 import torch.nn as nn
 
 class MyDiceLoss(nn.Module):
-    def __init__(self, smooth=1e-5):
+    def __init__(self, smooth=1e-4):
         super().__init__()
         self.smooth = smooth
 

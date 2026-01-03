@@ -152,5 +152,6 @@ checkpoint_name_format: "hrnet_w18_aug_elastic_3_stage-best_{epoch}epoch_{dice_s
 # wandb
 team_name: cv_11
 project_name: cv-11-SEG
+auto_run_name: False
 experiment_detail: hrnet_w18_aug_elastic_3_stage
 

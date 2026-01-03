@@ -84,10 +84,19 @@ def main(cfg):
                                               is_train=True,
                                               min_size=wrist_crop_config.get('min_size', 128),
                                               margin_frac=wrist_crop_config.get('margin_frac', 0.15))
-        train_dataset = ConcatDataset([train_dataset_full, train_dataset_wrist])
-        print(f"[Wrist Crop] Enabled - min_size: {wrist_crop_config.get('min_size', 128)}, "
-              f"margin_frac: {wrist_crop_config.get('margin_frac', 0.15)}")
-        print(f"[Wrist Crop] Train dataset size: {len(train_dataset_full)} (full) + {len(train_dataset_wrist)} (crop) = {len(train_dataset)}")
+        
+        # mode에 따라 데이터셋 선택: "concat" (기본값) 또는 "crop_only"
+        crop_mode = wrist_crop_config.get('mode', 'concat')
+        if crop_mode == 'crop_only':
+            train_dataset = train_dataset_wrist
+            print(f"[Wrist Crop] Mode: crop_only - min_size: {wrist_crop_config.get('min_size', 128)}, "
+                  f"margin_frac: {wrist_crop_config.get('margin_frac', 0.15)}")
+            print(f"[Wrist Crop] Train dataset size: {len(train_dataset_wrist)} (crop only)")
+        else:  # mode == 'concat' (기본값)
+            train_dataset = ConcatDataset([train_dataset_full, train_dataset_wrist])
+            print(f"[Wrist Crop] Mode: concat - min_size: {wrist_crop_config.get('min_size', 128)}, "
+                  f"margin_frac: {wrist_crop_config.get('margin_frac', 0.15)}")
+            print(f"[Wrist Crop] Train dataset size: {len(train_dataset_full)} (full) + {len(train_dataset_wrist)} (crop) = {len(train_dataset)}")
     else:
         train_dataset = train_dataset_full
     

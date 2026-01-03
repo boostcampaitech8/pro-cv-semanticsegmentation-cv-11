@@ -1,6 +1,10 @@
 import os
 import os.path as osp
 
+
+os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
+os.environ["TORCH_USE_CUDA_DSA"] = '1'
+
 import torch
 import random
 import warnings

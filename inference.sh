@@ -8,9 +8,9 @@
 # ============================================================================
 # 변수 설정 (여기서 수정하세요)
 # ============================================================================
-MODEL_PATH="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRNet_W48/hrnet_w48_cosinewarmup_tier_weights_simple-best_36epoch_0.9727.pt"
+MODEL_PATH="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/ens_candidates/148_segformer_b5_test-best_38epoch_0.9710.pt"
 IMAGE_ROOT="/data/ephemeral/home/dataset/test/DCM"
-OUTPUT_DIR="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/outputs/HRNet_W48"
+OUTPUT_DIR="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/outputs/ens_candidates"
 THR=0.5
 THR_DICT="/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/scripts/basic_runners/class_thresholds/class_thresholds_hard.json"
 RESIZE=1024

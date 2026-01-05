@@ -8,13 +8,13 @@
 # ============================================================================
 # 변수 설정 (여기서 수정하세요)
 # ============================================================================
-MODEL_PATH="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRNet_W48/hrnet_w48_cosinewarmup-best_29epoch_0.9731.pt"
+MODEL_PATH="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRNet_W48/hrnet_w48_cosinewarmup_tier_weights_simple-best_36epoch_0.9727.pt"
 IMAGE_ROOT="/data/ephemeral/home/dataset/test/DCM"
 OUTPUT_DIR="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/outputs/HRNet_W48"
 THR=0.5
 THR_DICT="/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/scripts/basic_runners/class_thresholds/class_thresholds_hard.json"
 RESIZE=1024
-BATCH_SIZE=1
+BATCH_SIZE=4
 
 # 출력 파일명 (모델명에서 자동 추출하거나 직접 지정)
 # basename: 경로에서 파일명만 추출

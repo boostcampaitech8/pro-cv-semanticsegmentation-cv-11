@@ -70,8 +70,8 @@ class Trainer:
         self.current_stage = 1  # 현재 stage (1, 2, 3)
         self.stage2_consecutive = 0  # Stage 2 전환을 위한 연속 만족 카운터
         self.stage3_consecutive = 0  # Stage 3 전환을 위한 연속 만족 카운터
-        # self.use_amp = True
-        self.use_amp = False
+        self.use_amp = True
+        # self.use_amp = False
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
         self.accum_steps = accum_steps
 

@@ -246,11 +246,12 @@ class WristCropDataset(Dataset):
         
         # Transform 적용
         if self.transforms is not None:
-            inputs = {"image": image, "mask": label} if self.is_train else {"image": image}
+            # Validation에서도 mask를 포함시켜야 함 (crop 후 크기가 다를 수 있으므로)
+            inputs = {"image": image, "mask": label}
             result = self.transforms(**inputs)
             
             image = result["image"]
-            label = result["mask"] if self.is_train else label
+            label = result["mask"]
 
         # to tensor
         image = image.transpose(2, 0, 1)    # channel first

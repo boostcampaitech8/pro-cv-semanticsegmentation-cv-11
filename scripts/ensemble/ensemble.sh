@@ -27,6 +27,12 @@ MODELS=(
 WEIGHTS=(0.2 0.2 0.2 0.2 0.2)
 # WEIGHTS=()  # 빈 배열이면 동일 가중치 사용
 
+# Crop 모델 인덱스 (클래스별 선택적 앙상블용)
+# Wrist class 8개는 이 모델만 사용, 나머지 클래스는 다른 모델들만 앙상블
+# None이거나 주석 처리하면 기존처럼 모든 클래스에 대해 일반 앙상블
+# ROP_MODEL_IDX=0
+CROP_MODEL_IDX=""  # 사용하지 않으면 비워두기
+
 # TTA 사용 여부
 USE_TTA=true
 # USE_TTA=false
@@ -146,6 +152,11 @@ PYTHON_ARGS+=(--thr "${THR}")
 # threshold JSON 파일이 지정된 경우 추가
 if [ -n "${THR_DICT}" ] && [ -f "${THR_DICT}" ]; then
     PYTHON_ARGS+=(--thr_dict "${THR_DICT}")
+fi
+
+# Crop 모델 인덱스가 지정된 경우 추가
+if [ -n "${CROP_MODEL_IDX}" ] && [ "${CROP_MODEL_IDX}" != "" ]; then
+    PYTHON_ARGS+=(--crop_model_idx "${CROP_MODEL_IDX}")
 fi
 
 PYTHON_ARGS+=(--resize "${RESIZE[@]}")

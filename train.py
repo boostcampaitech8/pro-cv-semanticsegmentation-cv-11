@@ -1,5 +1,6 @@
 import os
 import os.path as osp
+import json
 
 
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
@@ -203,9 +204,41 @@ def main(cfg):
     scheduler_selector = SchedulerPicker(optimizer)
     scheduler = scheduler_selector.get_scheduler(cfg.scheduler_name, **scheduler_parameter)
     
+    # class weights JSON 파일 로드 (선택적)
+    class_weights = None
+    class_weights_path = cfg.get('class_weights_path', None)
+    if class_weights_path:
+        if not osp.exists(class_weights_path):
+            raise FileNotFoundError(f"Class weights file not found: {class_weights_path}")
+        with open(class_weights_path, 'r') as f:
+            class_weights = json.load(f)
+        print(f"[Class Weights] Loaded from: {class_weights_path}")
+        print(f"[Class Weights] Total classes: {len(class_weights)}")
+        # 손목뼈 클래스들의 가중치 출력 (예시)
+        wrist_classes = ['Trapezium', 'Trapezoid', 'Capitate', 'Hamate', 
+                        'Scaphoid', 'Lunate', 'Triquetrum', 'Pisiform']
+        wrist_weights = {k: v for k, v in class_weights.items() if k in wrist_classes}
+        if wrist_weights:
+            print(f"[Class Weights] Wrist bone weights: {wrist_weights}")
+    
+    # loss_parameter에 class_weights 추가
+    loss_parameter = dict(cfg.loss_parameter) if cfg.loss_parameter else {}
+    if class_weights is not None:
+        # 각 loss에 class_weights 전달
+        if 'losses' in loss_parameter:
+            for loss_config in loss_parameter['losses']:
+                if 'params' not in loss_config:
+                    loss_config['params'] = {}
+                loss_config['params']['class_weights'] = class_weights
+        else:
+            # 단일 loss인 경우
+            if 'params' not in loss_parameter:
+                loss_parameter['params'] = {}
+            loss_parameter['params']['class_weights'] = class_weights
+    
     # loss 선택
     loss_selector = LossMixer()
-    criterion = loss_selector.get_loss(cfg.loss_name, **cfg.loss_parameter)
+    criterion = loss_selector.get_loss(cfg.loss_name, **loss_parameter)
 
     # Loss switching 설정 (yaml에서 선택적으로 제공)
     loss_switch_config = cfg.get('loss_switch', None)
@@ -225,7 +258,8 @@ def main(cfg):
         val_interval=cfg.val_interval,
         checkpoint_name_format=cfg.get('checkpoint_name_format', None),
         loss_selector=loss_selector,
-        loss_switch_config=loss_switch_config
+        loss_switch_config=loss_switch_config,
+        accum_steps=cfg.get('accum_steps', 1)  # gradient accumulation steps (기본값: 1)
     )
 
     trainer.train()

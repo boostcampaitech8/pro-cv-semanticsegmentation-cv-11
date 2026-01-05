@@ -1,0 +1,14 @@
+[
+  null,
+  null,
+  null,
+  null,
+  {
+    "model_name": "UnetPlusPlus",
+    "encoder_name": "se_resnext101_32x4d",
+    "encoder_weights": null,
+    "in_channels": 3,
+    "classes": 29
+  }
+]
+

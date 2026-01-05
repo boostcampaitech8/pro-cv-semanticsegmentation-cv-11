@@ -21,6 +21,12 @@ from models.model_picker import ModelPicker
 import ttach as tta
 from ttach import HorizontalFlip
 
+# Wrist class 정의 (클래스별 선택적 앙상블용)
+WRIST_CLASSES = [
+    "Trapezium", "Trapezoid", "Capitate", "Hamate",
+    "Scaphoid", "Lunate", "Triquetrum", "Pisiform",
+]
+
 # mask map으로 나오는 인퍼런스 결과를 RLE로 인코딩 합니다.
 def encode_mask_to_rle(mask):
     '''
@@ -229,15 +235,54 @@ def ensemble_inference(args, data_loaders, class_thresholds=None):
                     outputs = torch.sigmoid(outputs)  # sigmoid 적용
                     model_outputs.append(outputs)
                 
-                # 가중 평균으로 앙상블
-                if weights is not None:
-                    # 가중 평균
+                # 가중 평균으로 앙상블 (클래스별 선택적 앙상블 지원)
+                if args.crop_model_idx is not None and args.crop_model_idx < len(models):
+                    # 클래스별 선택적 앙상블: Wrist class는 crop 모델만, 나머지는 full 모델들만
                     ensemble_outputs = torch.zeros_like(model_outputs[0])
-                    for i, output in enumerate(model_outputs):
-                        ensemble_outputs += weights[i] * output
+                    crop_model_idx = args.crop_model_idx
+                    full_model_indices = [i for i in range(len(models)) if i != crop_model_idx]
+                    
+                    # Wrist class 인덱스 계산
+                    wrist_indices = [CLASSES.index(c) for c in WRIST_CLASSES if c in CLASSES]
+                    
+                    if weights is not None:
+                        # Full 모델들의 가중치 합 계산
+                        full_weights_sum = sum(weights[i] for i in full_model_indices)
+                        
+                        for c in range(ensemble_outputs.shape[1]):  # 각 클래스별로
+                            if c in wrist_indices:
+                                # Wrist class: crop 모델만 사용
+                                ensemble_outputs[:, c, :, :] = model_outputs[crop_model_idx][:, c, :, :]
+                            else:
+                                # 나머지 클래스: full 모델들만 앙상블 (가중치 정규화)
+                                if full_weights_sum > 0:
+                                    for i in full_model_indices:
+                                        normalized_weight = weights[i] / full_weights_sum
+                                        ensemble_outputs[:, c, :, :] += normalized_weight * model_outputs[i][:, c, :, :]
+                                else:
+                                    # 가중치가 0인 경우 단순 평균
+                                    full_outputs = torch.stack([model_outputs[i][:, c, :, :] for i in full_model_indices])
+                                    ensemble_outputs[:, c, :, :] = torch.mean(full_outputs, dim=0)
+                    else:
+                        # 단순 평균 버전
+                        for c in range(ensemble_outputs.shape[1]):
+                            if c in wrist_indices:
+                                # Wrist class: crop 모델만 사용
+                                ensemble_outputs[:, c, :, :] = model_outputs[crop_model_idx][:, c, :, :]
+                            else:
+                                # 나머지 클래스: full 모델들만 평균
+                                full_outputs = torch.stack([model_outputs[i][:, c, :, :] for i in full_model_indices])
+                                ensemble_outputs[:, c, :, :] = torch.mean(full_outputs, dim=0)
                 else:
-                    # 단순 평균
-                    ensemble_outputs = torch.mean(torch.stack(model_outputs), dim=0)
+                    # 기존 방식: 모든 클래스에 대해 일반 앙상블
+                    if weights is not None:
+                        # 가중 평균
+                        ensemble_outputs = torch.zeros_like(model_outputs[0])
+                        for i, output in enumerate(model_outputs):
+                            ensemble_outputs += weights[i] * output
+                    else:
+                        # 단순 평균
+                        ensemble_outputs = torch.mean(torch.stack(model_outputs), dim=0)
                 
                 # Threshold 적용
                 if threshold_tensor is not None:
@@ -386,13 +431,52 @@ def ensemble_validate(args, data_loaders, val_loader, class_thresholds=None):
                     if batch_idx == 0:
                         print(f"[Debug] Model {i+1} final output shape (after interpolate & sigmoid): {outputs.shape}")
                 
-                # 가중 평균으로 앙상블
-                if weights is not None:
+                # 가중 평균으로 앙상블 (클래스별 선택적 앙상블 지원)
+                if args.crop_model_idx is not None and args.crop_model_idx < len(models):
+                    # 클래스별 선택적 앙상블: Wrist class는 crop 모델만, 나머지는 full 모델들만
                     ensemble_outputs = torch.zeros_like(model_outputs[0])
-                    for i, output in enumerate(model_outputs):
-                        ensemble_outputs += weights[i] * output
+                    crop_model_idx = args.crop_model_idx
+                    full_model_indices = [i for i in range(len(models)) if i != crop_model_idx]
+                    
+                    # Wrist class 인덱스 계산
+                    wrist_indices = [CLASSES.index(c) for c in WRIST_CLASSES if c in CLASSES]
+                    
+                    if weights is not None:
+                        # Full 모델들의 가중치 합 계산
+                        full_weights_sum = sum(weights[i] for i in full_model_indices)
+                        
+                        for c in range(ensemble_outputs.shape[1]):  # 각 클래스별로
+                            if c in wrist_indices:
+                                # Wrist class: crop 모델만 사용
+                                ensemble_outputs[:, c, :, :] = model_outputs[crop_model_idx][:, c, :, :]
+                            else:
+                                # 나머지 클래스: full 모델들만 앙상블 (가중치 정규화)
+                                if full_weights_sum > 0:
+                                    for i in full_model_indices:
+                                        normalized_weight = weights[i] / full_weights_sum
+                                        ensemble_outputs[:, c, :, :] += normalized_weight * model_outputs[i][:, c, :, :]
+                                else:
+                                    # 가중치가 0인 경우 단순 평균
+                                    full_outputs = torch.stack([model_outputs[i][:, c, :, :] for i in full_model_indices])
+                                    ensemble_outputs[:, c, :, :] = torch.mean(full_outputs, dim=0)
+                    else:
+                        # 단순 평균 버전
+                        for c in range(ensemble_outputs.shape[1]):
+                            if c in wrist_indices:
+                                # Wrist class: crop 모델만 사용
+                                ensemble_outputs[:, c, :, :] = model_outputs[crop_model_idx][:, c, :, :]
+                            else:
+                                # 나머지 클래스: full 모델들만 평균
+                                full_outputs = torch.stack([model_outputs[i][:, c, :, :] for i in full_model_indices])
+                                ensemble_outputs[:, c, :, :] = torch.mean(full_outputs, dim=0)
                 else:
-                    ensemble_outputs = torch.mean(torch.stack(model_outputs), dim=0)
+                    # 기존 방식: 모든 클래스에 대해 일반 앙상블
+                    if weights is not None:
+                        ensemble_outputs = torch.zeros_like(model_outputs[0])
+                        for i, output in enumerate(model_outputs):
+                            ensemble_outputs += weights[i] * output
+                    else:
+                        ensemble_outputs = torch.mean(torch.stack(model_outputs), dim=0)
                 
                 # 디버깅: 첫 번째 배치에서 예측 분포 확인
                 if batch_idx == 0:
@@ -470,6 +554,7 @@ if __name__ == "__main__":
     parser.add_argument("--label_root", type=str, default=None, help="Path to validation labels root (required for --validate)")
     parser.add_argument("--val_fold", type=int, default=0, help="Validation fold number (0-4, for --validate)")
     parser.add_argument("--log_file", type=str, default=None, help="Path to save validation log file (optional)")
+    parser.add_argument("--crop_model_idx", type=int, default=None, help="Index of crop-trained model in models list (for wrist classes only). If None, use normal ensemble for all classes.")
     args = parser.parse_args()
     
     # model_configs JSON 파일 로드
@@ -610,6 +695,14 @@ if __name__ == "__main__":
             print(f"\nValidation log saved to: {args.log_file}")
     else:
         # 일반 추론 모드 (CSV 저장)
+        # 이미지 파일 목록 수집
+        fnames = sorted([
+            osp.relpath(osp.join(root, fname), start=args.image_root)
+            for root, _, files in os.walk(args.image_root)
+            for fname in files
+            if osp.splitext(fname)[1].lower() == ".png"
+        ])
+        
         # 각 모델마다 다른 resize로 데이터로더 생성
         data_loaders = []
         for i, resize in enumerate(resizes):

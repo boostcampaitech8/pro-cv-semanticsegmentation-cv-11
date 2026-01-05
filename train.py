@@ -19,6 +19,7 @@ from trainer import Trainer
 from dataset import XRayDataset, WristCropDataset
 from omegaconf import OmegaConf
 from utils.wandb import set_wandb
+from utils.normalization import replace_bn_with_gn, count_bn_layers
 from torch.utils.data import DataLoader, ConcatDataset
 from loss.loss_mixer import LossMixer
 from scheduler.scheduler_picker import SchedulerPicker
@@ -138,6 +139,24 @@ def main(cfg):
     # model 선택
     model_selector = ModelPicker()
     model = model_selector.get_model(cfg.model_name, **cfg.model_parameter)
+
+    # BatchNorm → GroupNorm 교체 (yaml 설정에 따라)
+    replace_bn = cfg.get('replace_bn_with_gn', False)
+    if replace_bn:
+        bn_count_before = count_bn_layers(model)
+        if bn_count_before > 0:
+            gn_num_groups = cfg.get('gn_num_groups', 32)
+            print(f"[Normalization] Replacing BatchNorm with GroupNorm...")
+            print(f"[Normalization] Found {bn_count_before} BatchNorm2d layers")
+            print(f"[Normalization] GroupNorm groups: {gn_num_groups}")
+            model = replace_bn_with_gn(model, num_groups=gn_num_groups)
+            bn_count_after = count_bn_layers(model)
+            if bn_count_after == 0:
+                print(f"[Normalization] Successfully replaced all BatchNorm layers with GroupNorm")
+            else:
+                print(f"[Warning] {bn_count_after} BatchNorm layers remain (may be in nested modules)")
+        else:
+            print(f"[Normalization] No BatchNorm2d layers found in model (may use LayerNorm or other normalization)")
 
     # 체크포인트에서 가중치 로드
     checkpoint_path = cfg.get('resume_from', None)

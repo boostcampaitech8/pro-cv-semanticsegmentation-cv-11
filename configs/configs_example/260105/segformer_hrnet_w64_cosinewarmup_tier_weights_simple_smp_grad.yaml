@@ -20,9 +20,13 @@ model_parameter:
   classes: 29
 
 # batch_size
-train_batch_size: 2
-val_batch_size: 2
-accum_steps: 2
+train_batch_size: 2 # 1
+val_batch_size: 2 # 1 
+accum_steps: 2 # 4~8
+
+# BatchNorm → GroupNorm 교체 설정 (batch_size=1일 때 gradient accumulation 사용 시 권장)
+# replace_bn_with_gn: true  # BatchNorm을 GroupNorm으로 교체할지 여부
+# gn_num_groups: 32         # GroupNorm의 그룹 수 (기본값: 32, 채널 수보다 클 수 없음)
 
 # val_num_worker 지정
 num_workers: 4

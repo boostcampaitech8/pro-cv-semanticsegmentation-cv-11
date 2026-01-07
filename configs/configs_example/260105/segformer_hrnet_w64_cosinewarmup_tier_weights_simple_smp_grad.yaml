@@ -1,19 +1,32 @@
 # multiplier 1.0, 1 에폭 warmup, 5 에폭 주기로 70% 감소
-# train 640개, val 160개, batch_size train 2, val 1
+# train 640개, val 160개, batch_size train 2, val 2
+# Class weights: tier_based (전략 2)
+# Loss: BCE:Dice = 0.3:0.7 (단순 버전)
+# Gradient accumulation: accum_steps=2
+# ⚠️ 주의: SegFormer는 원래 MIT-B 계열만 지원하도록 설계되었습니다.
+# HRNet-W64는 CNN 기반이라 구조적으로 맞지 않을 수 있습니다.
+# 실제 작동 여부는 실행해봐야 확인 가능합니다.
 
 # data 관련 설정
 image_root: /data/ephemeral/home/dataset/train/DCM
 label_root: /data/ephemeral/home/dataset/train/outputs_json
 
 # 모델명 및 사전 학습 여부
-model_name: HRNet
+# SMP의 SegFormer with HRNet-W64 encoder (실험적)
+model_name: SegFormer
 model_parameter:
-  config_path: configs/mmseg_config_py_files/hrnet_w48_fcn.py
-  num_classes: 29
+  encoder_name: tu-hrnet_w64
+  encoder_weights: imagenet
+  classes: 29
 
 # batch_size
-train_batch_size: 2
-val_batch_size: 4
+train_batch_size: 2 # 1
+val_batch_size: 2 # 1 
+accum_steps: 2 # 4~8
+
+# BatchNorm → GroupNorm 교체 설정 (batch_size=1일 때 gradient accumulation 사용 시 권장)
+# replace_bn_with_gn: true  # BatchNorm을 GroupNorm으로 교체할지 여부
+# gn_num_groups: 32         # GroupNorm의 그룹 수 (기본값: 32, 채널 수보다 클 수 없음)
 
 # val_num_worker 지정
 num_workers: 4
@@ -34,10 +47,10 @@ train_transform:
   HorizontalFlip:
     p: 0.5
   ElasticTransform:
-    alpha: 50
-    sigma: 5
-    alpha_affine: 10
-    p: 0.2
+    alpha: 1
+    sigma: 50
+    alpha_affine: 2
+    p: 0.3
   CLAHE:
     clip_limit: 2.0
     tile_grid_size: [8, 8]
@@ -62,7 +75,7 @@ max_epoch: &max_epoch 50
 loss_name: Mixed
 
 # combo loss 사용시
-# Stage 1: BCE:Dice = 0.3:0.7
+# BCE:Dice = 0.3:0.7
 loss_parameter:
   losses:
     - name: BCEWithLogitsLoss
@@ -73,53 +86,9 @@ loss_parameter:
       params:
         smooth: 1e-5
 
-# 3-stage loss switching 설정
-loss_switch:
-  loss_stages:
-    stage1:  # 기본 stage (BCE:Dice = 0.3:0.7)
-      # stage1은 loss_name과 loss_parameter로 설정됨 (위에 정의됨)
-    
-    stage2:  # Stage 1 -> Stage 2 전환
-      enabled: true
-      lr_multiplier: 1.0  # multiplier 1.0 (LR 조정 안 함)
-      conditions:
-        global_dice_threshold: 0.80 
-        # class_dice_thresholds:  # 특정 클래스 dice >= threshold
-        #   Pisiform: 0.85
-        #   Trapezoid: 0.88
-        consecutive_epochs: 1  # 연속 1 에폭 만족 필요 (patience: 1)
-      loss:
-        loss_name: Mixed
-        loss_parameter:
-          losses:
-            - name: BCEWithLogitsLoss
-              weight: 0.2  # Dice 중심으로 전환
-              params: {}
-            - name: DiceLoss
-              weight: 0.8
-              params:
-                smooth: 1e-5
-    
-    stage3:  # Stage 2 -> Stage 3 전환
-      enabled: true
-      lr_multiplier: 1.0  # multiplier 1.0 (LR 조정 안 함)
-      conditions:
-        global_dice_threshold: 0.95 
-        # class_dice_thresholds:  # 특정 클래스 dice >= threshold
-        #   Pisiform: 0.89
-        #   Trapezoid: 0.91
-        consecutive_epochs: 1  # 연속 1 에폭 만족 필요 (patience: 1)
-      loss:
-        loss_name: Mixed
-        loss_parameter:
-          losses:
-            - name: BCEWithLogitsLoss
-              weight: 0.1  # Dice에 거의 집중
-              params: {}
-            - name: DiceLoss
-              weight: 0.9
-              params:
-                smooth: 1e-5
+# class weights 설정 (전략 2: tier_based)
+# 구간별 가중치: 0.90-0.93(3.0x), 0.93-0.96(2.5x), 0.96-0.97(2.0x), 0.97-0.98(1.5x), 0.98+(1.0x)
+class_weights_path: configs/class_weights/class_weights_tier_based.json
 
 # scheduler 관련 설정
 scheduler_name: CosineAnnealingWarmupRestarts
@@ -144,6 +113,7 @@ scheduler_parameter:
   cycle_mult: 1.0  # 사이클 배수 (1.0이면 동일한 사이클 반복)
   gamma: 0.7  # 감쇠 계수 (각 사이클마다 lr이 70%로 감소)
 
+
 # optimizer 관련 설정
 optimizer_name: adamw
 
@@ -156,11 +126,15 @@ val_interval: 1
 threshold: 0.5
 
 # checkpoint 저장 경로
-save_dir: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRNet_W48
-checkpoint_name_format: "hrnet_w48_cosinewarmup_50e-best_{epoch}epoch_{dice_score:.4f}.pt"
+save_dir: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/SegFormer_HRNet_W64
+checkpoint_name_format: "segformer_hrnet_w64_cosinewarmup_tier_weights_smp_amp_grad-best_{epoch}epoch_{dice_score:.4f}.pt"
 
 # wandb
 team_name: cv_11
 project_name: cv-11-SEG
-experiment_detail: hrnet_w48_cosinewarmup_50e
+auto_run_name: true  # 자동으로 run name 생성
+run_name_decoder: segformer
+run_name_backbone: hrnet_w64
+run_name_exp_id: classwise_weights_smp_amp_grad
+# experiment_detail: segformer_hrnet_w64_cosinewarmup_tier_weights_simple  # auto_run_name이 false일 때만 사용
 

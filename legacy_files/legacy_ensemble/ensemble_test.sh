@@ -15,23 +15,13 @@ PROJECT_ROOT="/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11"
 # 앙상블할 모델 경로들 (여러 개 가능)
 MODELS=(
     "/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/ens_candidates/145_unetpp_hrnet_w64_cosinewarmup_tier_weights_simple-best_48epoch_0.9738.pt"
-    "/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/ens_candidates/152_best_60epoch_0.9745.pt"
-    "/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/ens_candidates/136_hrnet_w48_cosinewarmup_tier_weights_simple-best_36epoch_0.9727.pt"
-    "/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/ens_candidates/148_segformer_b5_test-best_38epoch_0.9710.pt"
-    "/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/ens_candidates/60_2_unet_sd_ft_0.9745.pt"
 )
 
 # 모델별 가중치 (MODELS 순서와 동일하게, None이면 동일 가중치)
 # 기존: (0.27 0.33 0.20 0.20) + 새 모델 0.20 = 합 1.2
 # 정규화: 각각을 1.2로 나눔 → (0.225 0.275 0.1667 0.1667 0.1667)
-WEIGHTS=(0.2 0.2 0.2 0.2 0.2)
-# WEIGHTS=()  # 빈 배열이면 동일 가중치 사용
-
-# Crop 모델 인덱스 (클래스별 선택적 앙상블용)
-# Wrist class 8개는 이 모델만 사용, 나머지 클래스는 다른 모델들만 앙상블
-# None이거나 주석 처리하면 기존처럼 모든 클래스에 대해 일반 앙상블
-# ROP_MODEL_IDX=0
-CROP_MODEL_IDX=""  # 사용하지 않으면 비워두기
+# WEIGHTS=(0.225 0.275 0.1667 0.1667 0.1666)
+WEIGHTS=()  # 빈 배열이면 동일 가중치 사용
 
 # TTA 사용 여부
 USE_TTA=true
@@ -66,21 +56,16 @@ LOG_FILE="${LOG_DIR}/validation_$(date +%Y%m%d_%H%M%S).log"
 # 기본 threshold
 THR=0.5
 
-# 클래스별 threshold JSON 파일 경로 (선택사항)
-# 지정하면 해당 JSON 파일의 threshold를 사용하고, 지정하지 않으면 THR 값을 모든 클래스에 적용
-# THR_DICT="/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/scripts/basic_runners/class_thresholds/class_thresholds_hard.json"
-THR_DICT=""  # 사용하지 않으면 비워두기
-
 # 이미지 resize 크기 (각 모델마다 다른 크기 지정 가능)
 # 방법 1: 배열로 선언 (권장)
 #   RESIZE=(1024 1024 1536) - 모델 3개에 각각 1024, 1024, 1536 적용
 #   RESIZE=(1024) - 모든 모델에 1024 적용
 # 방법 2: 스칼라로 선언 (자동으로 배열로 변환됨)
 #   RESIZE=1024 - 모든 모델에 1024 적용
-RESIZE=(1024 2048 1024 1024 1024)
+RESIZE=(1024)
 
 # 배치 크기
-BATCH_SIZE=3
+BATCH_SIZE=4
 
 # Python 스크립트 경로
 ENSEMBLE_SCRIPT="${PROJECT_ROOT}/scripts/ensemble/ensemble.py"
@@ -89,8 +74,8 @@ ENSEMBLE_SCRIPT="${PROJECT_ROOT}/scripts/ensemble/ensemble.py"
 # 형식: [null, null, {...}, null] - 각 모델에 대한 config (null이면 전체 모델로 간주)
 # 예시: [{"model_name": "UnetPlusPlus", "encoder_name": "se_resnext101_32x4d", 
 #         "encoder_weights": null, "in_channels": 3, "classes": 29}]
-MODEL_CONFIGS="${PROJECT_ROOT}/scripts/ensemble/model_configs.json"
-# MODEL_CONFIGS=""  # state_dict 모델이 없으면 비워두기
+# MODEL_CONFIGS="${PROJECT_ROOT}/scripts/ensemble/model_configs.json"
+MODEL_CONFIGS=""  # state_dict 모델이 없으면 비워두기
 
 # ============================================================================
 # 출력 디렉토리 생성
@@ -148,17 +133,6 @@ if [ -n "${OUTPUT_FLAG}" ]; then
 fi
 
 PYTHON_ARGS+=(--thr "${THR}")
-
-# threshold JSON 파일이 지정된 경우 추가
-if [ -n "${THR_DICT}" ] && [ -f "${THR_DICT}" ]; then
-    PYTHON_ARGS+=(--thr_dict "${THR_DICT}")
-fi
-
-# Crop 모델 인덱스가 지정된 경우 추가
-if [ -n "${CROP_MODEL_IDX}" ] && [ "${CROP_MODEL_IDX}" != "" ]; then
-    PYTHON_ARGS+=(--crop_model_idx "${CROP_MODEL_IDX}")
-fi
-
 PYTHON_ARGS+=(--resize "${RESIZE[@]}")
 PYTHON_ARGS+=(--batch_size "${BATCH_SIZE}")
 

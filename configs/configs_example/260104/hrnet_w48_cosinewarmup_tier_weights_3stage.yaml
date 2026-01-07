@@ -1,5 +1,7 @@
 # multiplier 1.0, 1 에폭 warmup, 5 에폭 주기로 70% 감소
 # train 640개, val 160개, batch_size train 2, val 1
+# Class weights: tier_based (전략 2)
+# 3-stage loss switching: 0.3:0.7 → 0.2:0.8 → 0.1:0.9
 
 # data 관련 설정
 image_root: /data/ephemeral/home/dataset/train/DCM
@@ -12,7 +14,7 @@ model_parameter:
   num_classes: 29
 
 # batch_size
-train_batch_size: 2
+train_batch_size: 4
 val_batch_size: 4
 
 # val_num_worker 지정
@@ -72,6 +74,10 @@ loss_parameter:
       weight: 0.7
       params:
         smooth: 1e-5
+
+# class weights 설정 (전략 2: tier_based)
+# 구간별 가중치: 0.90-0.93(3.0x), 0.93-0.96(2.5x), 0.96-0.97(2.0x), 0.97-0.98(1.5x), 0.98+(1.0x)
+class_weights_path: configs/class_weights/class_weights_tier_based.json
 
 # 3-stage loss switching 설정
 loss_switch:
@@ -137,12 +143,13 @@ scheduler_name: CosineAnnealingWarmupRestarts
 #       warmup 320 스텝(1 에폭) 후 5 에폭 주기로 70% 감소
 #       first_cycle_steps = warmup(320) + 5 에폭(1600) = 1920 steps
 scheduler_parameter:
-  first_cycle_steps: 1920  # 320 * (1 + 5) = 1 에폭 warmup + 5 에폭 주기
-  warmup_steps: 320  # 1 에폭 (640 / 2 = 320 steps)
+  first_cycle_steps: 960  # 160 * (1 + 5) = 1 에폭 warmup + 5 에폭 주기
+  warmup_steps: 160  # 1 에폭 (640 / 8 = 80 steps)
   max_lr: 1e-3  # 초기 learning rate
   min_lr: 1e-6  # 최소 learning rate
   cycle_mult: 1.0  # 사이클 배수 (1.0이면 동일한 사이클 반복)
   gamma: 0.7  # 감쇠 계수 (각 사이클마다 lr이 70%로 감소)
+
 
 # optimizer 관련 설정
 optimizer_name: adamw
@@ -157,10 +164,14 @@ threshold: 0.5
 
 # checkpoint 저장 경로
 save_dir: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRNet_W48
-checkpoint_name_format: "hrnet_w48_cosinewarmup_50e-best_{epoch}epoch_{dice_score:.4f}.pt"
+checkpoint_name_format: "hrnet_w48_cosinewarmup_tier_weights_3stage-best_{epoch}epoch_{dice_score:.4f}.pt"
 
 # wandb
 team_name: cv_11
 project_name: cv-11-SEG
-experiment_detail: hrnet_w48_cosinewarmup_50e
+auto_run_name: true  # 자동으로 run name 생성
+run_name_decoder: fcnhead
+run_name_backbone: hrnet_w48
+run_name_exp_id: classwise_weights_3stage
+# experiment_detail: hrnet_w48_cosinewarmup_tier_weights_3stage  # auto_run_name이 false일 때만 사용
 

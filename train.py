@@ -169,7 +169,8 @@ def main(cfg):
         val_interval=cfg.val_interval,
         checkpoint_name_format=cfg.get('checkpoint_name_format', None),
         loss_selector=loss_selector,
-        loss_switch_config=loss_switch_config
+        loss_switch_config=loss_switch_config,
+        accum_steps=cfg.accum_steps
     )
 
     trainer.train()

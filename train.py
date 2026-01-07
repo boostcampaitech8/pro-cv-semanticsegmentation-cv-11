@@ -1,5 +1,6 @@
 import os
 import os.path as osp
+import json
 
 
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
@@ -15,10 +16,11 @@ import argparse
 
 from tqdm.auto import tqdm
 from trainer import Trainer
-from dataset import XRayDataset
+from dataset import XRayDataset, WristCropDataset
 from omegaconf import OmegaConf
 from utils.wandb import set_wandb
-from torch.utils.data import DataLoader
+# from utils.normalization import replace_bn_with_gn, count_bn_layers
+from torch.utils.data import DataLoader, ConcatDataset
 from loss.loss_mixer import LossMixer
 from scheduler.scheduler_picker import SchedulerPicker
 from optimizers.optimizer_picker import OptimizerPicker 
@@ -67,27 +69,69 @@ def main(cfg):
     val_transform = [getattr(A, aug)(**params) 
                                          for aug, params in cfg.val_transform.items()]
 
-    train_dataset = XRayDataset(fnames,
-                                labels,
-                                cfg.image_root,
-                                cfg.label_root,
-                                fold=cfg.val_fold,
-                                transforms=train_transforms,
-                                is_train=True)
+    # Train dataset (원본)
+    train_dataset_full = XRayDataset(fnames,
+                                     labels,
+                                     cfg.image_root,
+                                     cfg.label_root,
+                                     fold=cfg.val_fold,
+                                     transforms=train_transforms,
+                                     is_train=True)
     
-    valid_dataset = XRayDataset(fnames,
-                                labels,
-                                cfg.image_root,
-                                cfg.label_root,
-                                fold=cfg.val_fold,
-                                transforms=val_transform,
-                                is_train=False)
+    # Wrist crop 옵션 확인
+    wrist_crop_config = cfg.get('wrist_crop', {})
+    if wrist_crop_config.get('enabled', False):
+        train_dataset_wrist = WristCropDataset(fnames,
+                                              labels,
+                                              cfg.image_root,
+                                              cfg.label_root,
+                                              fold=cfg.val_fold,
+                                              transforms=train_transforms,
+                                              is_train=True,
+                                              min_size=wrist_crop_config.get('min_size', 128),
+                                              margin_frac=wrist_crop_config.get('margin_frac', 0.15))
+        
+        # mode에 따라 데이터셋 선택: "concat" (기본값) 또는 "crop_only"
+        crop_mode = wrist_crop_config.get('mode', 'concat')
+        if crop_mode == 'crop_only':
+            train_dataset = train_dataset_wrist
+            print(f"[Wrist Crop] Mode: crop_only - min_size: {wrist_crop_config.get('min_size', 128)}, "
+                  f"margin_frac: {wrist_crop_config.get('margin_frac', 0.15)}")
+            print(f"[Wrist Crop] Train dataset size: {len(train_dataset_wrist)} (crop only)")
+        else:  # mode == 'concat' (기본값)
+            train_dataset = ConcatDataset([train_dataset_full, train_dataset_wrist])
+            print(f"[Wrist Crop] Mode: concat - min_size: {wrist_crop_config.get('min_size', 128)}, "
+                  f"margin_frac: {wrist_crop_config.get('margin_frac', 0.15)}")
+            print(f"[Wrist Crop] Train dataset size: {len(train_dataset_full)} (full) + {len(train_dataset_wrist)} (crop) = {len(train_dataset)}")
+    else:
+        train_dataset = train_dataset_full
+    
+    # Valid dataset (wrist_crop이 enabled이고 crop_only 모드면 동일하게 crop 적용)
+    if wrist_crop_config.get('enabled', False) and wrist_crop_config.get('mode') == 'crop_only':
+        valid_dataset = WristCropDataset(fnames,
+                                        labels,
+                                        cfg.image_root,
+                                        cfg.label_root,
+                                        fold=cfg.val_fold,
+                                        transforms=val_transform,
+                                        is_train=False,
+                                        min_size=wrist_crop_config.get('min_size', 128),
+                                        margin_frac=wrist_crop_config.get('margin_frac', 0.15))
+        print(f"[Wrist Crop] Validation dataset: crop_only mode (same as training)")
+    else:
+        valid_dataset = XRayDataset(fnames,
+                                    labels,
+                                    cfg.image_root,
+                                    cfg.label_root,
+                                    fold=cfg.val_fold,
+                                    transforms=val_transform,
+                                    is_train=False)
     
     train_loader = DataLoader(
         dataset=train_dataset, 
         batch_size=cfg.train_batch_size,
         shuffle=True,
-        num_workers=8,
+        num_workers=8, # 8 / 이거 줄이면 속도 엄청나게 감소함 / 1로 하니까 약 4배 느려짐
         drop_last=True,
 
     )
@@ -108,6 +152,50 @@ def main(cfg):
     model_selector = ModelPicker()
     model = model_selector.get_model(cfg.model_name, **cfg.model_parameter)
 
+    # # BatchNorm → GroupNorm 교체 (yaml 설정에 따라)
+    # replace_bn = cfg.get('replace_bn_with_gn', False)
+    # if replace_bn:
+    #     bn_count_before = count_bn_layers(model)
+    #     if bn_count_before > 0:
+    #         gn_num_groups = cfg.get('gn_num_groups', 32)
+    #         print(f"[Normalization] Replacing BatchNorm with GroupNorm...")
+    #         print(f"[Normalization] Found {bn_count_before} BatchNorm2d layers")
+    #         print(f"[Normalization] GroupNorm groups: {gn_num_groups}")
+    #         model = replace_bn_with_gn(model, num_groups=gn_num_groups)
+    #         bn_count_after = count_bn_layers(model)
+    #         if bn_count_after == 0:
+    #             print(f"[Normalization] Successfully replaced all BatchNorm layers with GroupNorm")
+    #         else:
+    #             print(f"[Warning] {bn_count_after} BatchNorm layers remain (may be in nested modules)")
+    #     else:
+    #         print(f"[Normalization] No BatchNorm2d layers found in model (may use LayerNorm or other normalization)")
+
+    # 체크포인트에서 가중치 로드
+    checkpoint_path = cfg.get('resume_from', None)
+    if checkpoint_path:
+        if not osp.exists(checkpoint_path):
+            raise FileNotFoundError(f"Checkpoint file not found: {checkpoint_path}")
+        
+        print(f"[Resume] Loading checkpoint from: {checkpoint_path}")
+        checkpoint = torch.load(checkpoint_path, map_location=device)
+        
+        # 전체 모델이 저장된 경우
+        if isinstance(checkpoint, torch.nn.Module):
+            model = checkpoint
+            print("[Resume] Loaded entire model from checkpoint")
+        # state_dict만 저장된 경우
+        elif isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
+            model.load_state_dict(checkpoint['state_dict'])
+            print("[Resume] Loaded model state_dict from checkpoint")
+        # state_dict가 직접 저장된 경우
+        elif isinstance(checkpoint, dict):
+            model.load_state_dict(checkpoint)
+            print("[Resume] Loaded model state_dict from checkpoint")
+        else:
+            # 기타 경우: 전체 모델로 간주
+            model = checkpoint
+            print("[Resume] Loaded entire model from checkpoint (fallback)")
+    
     model.to(device)
 
     # optimizer는 선택
@@ -147,9 +235,41 @@ def main(cfg):
     scheduler_selector = SchedulerPicker(optimizer)
     scheduler = scheduler_selector.get_scheduler(cfg.scheduler_name, **scheduler_parameter)
     
+    # class weights JSON 파일 로드 (선택적)
+    class_weights = None
+    class_weights_path = cfg.get('class_weights_path', None)
+    if class_weights_path:
+        if not osp.exists(class_weights_path):
+            raise FileNotFoundError(f"Class weights file not found: {class_weights_path}")
+        with open(class_weights_path, 'r') as f:
+            class_weights = json.load(f)
+        print(f"[Class Weights] Loaded from: {class_weights_path}")
+        print(f"[Class Weights] Total classes: {len(class_weights)}")
+        # 손목뼈 클래스들의 가중치 출력 (예시)
+        wrist_classes = ['Trapezium', 'Trapezoid', 'Capitate', 'Hamate', 
+                        'Scaphoid', 'Lunate', 'Triquetrum', 'Pisiform']
+        wrist_weights = {k: v for k, v in class_weights.items() if k in wrist_classes}
+        if wrist_weights:
+            print(f"[Class Weights] Wrist bone weights: {wrist_weights}")
+    
+    # loss_parameter에 class_weights 추가
+    loss_parameter = dict(cfg.loss_parameter) if cfg.loss_parameter else {}
+    if class_weights is not None:
+        # 각 loss에 class_weights 전달
+        if 'losses' in loss_parameter:
+            for loss_config in loss_parameter['losses']:
+                if 'params' not in loss_config:
+                    loss_config['params'] = {}
+                loss_config['params']['class_weights'] = class_weights
+        else:
+            # 단일 loss인 경우
+            if 'params' not in loss_parameter:
+                loss_parameter['params'] = {}
+            loss_parameter['params']['class_weights'] = class_weights
+    
     # loss 선택
     loss_selector = LossMixer()
-    criterion = loss_selector.get_loss(cfg.loss_name, **cfg.loss_parameter)
+    criterion = loss_selector.get_loss(cfg.loss_name, **loss_parameter)
 
     # Loss switching 설정 (yaml에서 선택적으로 제공)
     loss_switch_config = cfg.get('loss_switch', None)
@@ -170,7 +290,7 @@ def main(cfg):
         checkpoint_name_format=cfg.get('checkpoint_name_format', None),
         loss_selector=loss_selector,
         loss_switch_config=loss_switch_config,
-        accum_steps=cfg.accum_steps
+        accum_steps=cfg.get('accum_steps', 1)  # gradient accumulation steps (기본값: 1)
     )
 
     trainer.train()

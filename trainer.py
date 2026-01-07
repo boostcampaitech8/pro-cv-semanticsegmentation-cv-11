@@ -41,7 +41,7 @@ class Trainer:
                  checkpoint_name_format: str = None,
                  loss_selector = None,
                  loss_switch_config: dict = None,
-                 accum_steps: int = 1 
+                 accum_steps: int = 2
                 ):
         self.model = model
         self.device = device
@@ -117,8 +117,6 @@ class Trainer:
 
                 # (중요) dtype 정리: BCE/Dice는 float mask가 안전
                 masks = masks.float()
-                # 만약 0/255라면 이거까지:
-                masks = (masks > 0).float()
 
                 if step == 0 and epoch == 1:
                     print("mask min/max:", masks.min().item(), masks.max().item())
@@ -150,11 +148,8 @@ class Trainer:
 
                 if self.use_amp:
                     self.scaler.scale(loss).backward()
-                    # self.scaler.step(self.optimizer)
-                    # self.scaler.update()
                 else:
                     loss.backward()
-                    # self.optimizer.step()
 
                 if (step + 1) % self.accum_steps == 0 or (step + 1) == len(self.train_loader):
                     if self.use_amp:

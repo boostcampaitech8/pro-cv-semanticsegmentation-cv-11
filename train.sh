@@ -10,19 +10,18 @@
 # ============================================================================
 
 # 프로젝트 루트 디렉토리
-PROJECT_ROOT="/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11"
+PROJECT_ROOT="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11"
 
 # 학습할 config 파일 목록 (순서대로 실행)
 # 단일 config만 사용하려면 하나만 남기고 나머지는 주석 처리
 CONFIGS=(
-    "/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/configs/configs_example/260101/unetpp_plateau_focal_tversky_dice.yaml"
-    # "/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/configs/configs_example/260101/hrnet_w48_ocr_cosinewarmup_50e.yaml"
-    # "/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/configs/configs_example/251231/hrnet_w18_ocr_multiplier_0.5_thr_0.8.yaml"
-    # "/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/configs/251230/hrnet_w18_stage_threshold_high_5050.yaml"
+    "/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/configs/unet3plus_512_acc1_bs8_fp16_csa.yaml"
+    "/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/configs/unet3plus_512_acc1_bs8_fp16_csw.yaml"
+    "/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/configs/unet3plus_512_acc1_bs8_fp16_rlrop.yaml"
 )
 
 # 로그 디렉토리 (절대경로 또는 상대경로)
-LOG_DIR="${PROJECT_ROOT}/logs/251231"
+LOG_DIR="${PROJECT_ROOT}/logs/schedulers"
 
 # Python 스크립트 경로
 TRAIN_SCRIPT="${PROJECT_ROOT}/train.py"

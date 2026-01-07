@@ -8,13 +8,15 @@
 # ============================================================================
 # 변수 설정 (여기서 수정하세요)
 # ============================================================================
-MODEL_PATH="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRNet_W48/hrnet_w48_cosinewarmup-best_29epoch_0.9731.pt"
-IMAGE_ROOT="/data/ephemeral/home/dataset/test/DCM"
-OUTPUT_DIR="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/outputs/HRNet_W48"
+# MODEL_PATH="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRNet_W48/hrnet_w48_cosinewarmup-best_29epoch_0.9731.pt"
+MODEL_PATH="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/unetpp_2048_acc2_bs2_fp16/best_76epoch_0.9738.pt"
+# IMAGE_ROOT="/data/ephemeral/home/dataset/test/DCM"
+IMAGE_ROOT="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/data/test/DCM"
+OUTPUT_DIR="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/csv/"
 THR=0.5
-THR_DICT="/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/scripts/basic_runners/class_thresholds/class_thresholds_hard.json"
-RESIZE=1024
-BATCH_SIZE=1
+# THR_DICT="/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/scripts/basic_runners/class_thresholds/class_thresholds_hard.json"
+RESIZE=2048
+BATCH_SIZE=2
 
 # 출력 파일명 (모델명에서 자동 추출하거나 직접 지정)
 # basename: 경로에서 파일명만 추출
@@ -27,7 +29,7 @@ MODEL_NAME=$(basename "$MODEL_PATH" .pt)
 OUTPUT_FILE="${OUTPUT_DIR}/${MODEL_NAME}.csv"
 
 # Python 스크립트 경로
-INFERENCE_SCRIPT="/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/inference.py"
+INFERENCE_SCRIPT="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/inference.py"
 
 # ============================================================================
 # 출력 디렉토리 생성
@@ -37,25 +39,25 @@ mkdir -p "${OUTPUT_DIR}"
 # ============================================================================
 # 1. 기본 Inference (TTA 없음, 기본 threshold 0.5)
 # ============================================================================
-# python "${INFERENCE_SCRIPT}" \
-#     "${MODEL_PATH}" \
-#     --image_root "${IMAGE_ROOT}" \
-#     --thr "${THR}" \
-#     --output "${OUTPUT_FILE}" \
-#     --resize "${RESIZE}" \
-#     --batch_size "${BATCH_SIZE}"
-
-# ============================================================================
-# 2. TTA 사용 Inference (--use_tta 플래그 사용)
-# ============================================================================
 python "${INFERENCE_SCRIPT}" \
     "${MODEL_PATH}" \
     --image_root "${IMAGE_ROOT}" \
     --thr "${THR}" \
-    --use_tta \
-    --output "${OUTPUT_DIR}/${MODEL_NAME}_tta.csv" \
+    --output "${OUTPUT_FILE}" \
     --resize "${RESIZE}" \
     --batch_size "${BATCH_SIZE}"
+
+# ============================================================================
+# 2. TTA 사용 Inference (--use_tta 플래그 사용)
+# ============================================================================
+# python "${INFERENCE_SCRIPT}" \
+#     "${MODEL_PATH}" \
+#     --image_root "${IMAGE_ROOT}" \
+#     --thr "${THR}" \
+#     --use_tta \
+#     --output "${OUTPUT_DIR}/${MODEL_NAME}_tta.csv" \
+#     --resize "${RESIZE}" \
+#     --batch_size "${BATCH_SIZE}"
 
 # ============================================================================
 # 3. Class-wise Threshold 사용 Inference

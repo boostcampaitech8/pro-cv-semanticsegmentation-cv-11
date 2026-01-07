@@ -41,7 +41,7 @@ class Trainer:
                  checkpoint_name_format: str = None,
                  loss_selector = None,
                  loss_switch_config: dict = None,
-                 accum_steps: int = 1 
+                 accum_steps: int = 2
                 ):
         self.model = model
         self.device = device
@@ -70,8 +70,8 @@ class Trainer:
         self.current_stage = 1  # 현재 stage (1, 2, 3)
         self.stage2_consecutive = 0  # Stage 2 전환을 위한 연속 만족 카운터
         self.stage3_consecutive = 0  # Stage 3 전환을 위한 연속 만족 카운터
-        # self.use_amp = True
-        self.use_amp = False
+        self.use_amp = True
+        # self.use_amp = False
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
         self.accum_steps = accum_steps
 
@@ -117,8 +117,6 @@ class Trainer:
 
                 # (중요) dtype 정리: BCE/Dice는 float mask가 안전
                 masks = masks.float()
-                # 만약 0/255라면 이거까지:
-                masks = (masks > 0).float()
 
                 if step == 0 and epoch == 1:
                     print("mask min/max:", masks.min().item(), masks.max().item())
@@ -150,11 +148,8 @@ class Trainer:
 
                 if self.use_amp:
                     self.scaler.scale(loss).backward()
-                    # self.scaler.step(self.optimizer)
-                    # self.scaler.update()
                 else:
                     loss.backward()
-                    # self.optimizer.step()
 
                 if (step + 1) % self.accum_steps == 0 or (step + 1) == len(self.train_loader):
                     if self.use_amp:

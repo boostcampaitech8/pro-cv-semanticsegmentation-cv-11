@@ -13,19 +13,98 @@ import numpy as np
 import pandas as pd
 import albumentations as A
 import torch.nn.functional as F
+import cv2
 
 from tqdm.auto import tqdm
 from torch.utils.data import DataLoader
 from dataset import XRayInferenceDataset, XRayDataset, CLASSES
 from models.model_picker import ModelPicker
 import ttach as tta
-from ttach import HorizontalFlip
+from ttach import HorizontalFlip, Multiply
 
 # Wrist class 정의 (클래스별 선택적 앙상블용)
 WRIST_CLASSES = [
     "Trapezium", "Trapezoid", "Capitate", "Hamate",
     "Scaphoid", "Lunate", "Triquetrum", "Pisiform",
 ]
+
+# Wrist class 인덱스 계산 (전역 변수로 한 번만 계산)
+WRIST_INDICES = [CLASSES.index(c) for c in WRIST_CLASSES if c in CLASSES]
+
+
+def get_wrist_roi_coords(wrist_mask_tensor, original_h, original_w, margin_frac=0.15, threshold=0.5):
+    """
+    Wrist mask에서 손목 부위 좌표 추출
+    
+    Args:
+        wrist_mask_tensor: (C, H, W) wrist class들의 mask tensor (sigmoid 적용된 probability)
+        original_h: 원본 이미지 높이
+        original_w: 원본 이미지 너비
+        margin_frac: bbox 주변 margin 비율
+        threshold: wrist detection threshold
+    
+    Returns:
+        ya, yb, xa, xb: crop 좌표
+        found: wrist가 발견되었는지 여부
+    """
+    # Wrist class들의 heatmap 합산
+    wrist_heatmap = wrist_mask_tensor[WRIST_INDICES, :, :].sum(dim=0)  # (H, W)
+    
+    # Threshold 이상인 영역 찾기
+    ys, xs = torch.where(wrist_heatmap > threshold)
+    
+    if len(ys) == 0:
+        return 0, original_h, 0, original_w, False
+    
+    y_min, y_max = ys.min().item(), ys.max().item()
+    x_min, x_max = xs.min().item(), xs.max().item()
+    
+    # Margin 추가
+    h_box = y_max - y_min + 1
+    w_box = x_max - x_min + 1
+    dy = int(h_box * margin_frac)
+    dx = int(w_box * margin_frac)
+    
+    ya = max(0, y_min - dy)
+    yb = min(original_h, y_max + dy)
+    xa = max(0, x_min - dx)
+    xb = min(original_w, x_max + dx)
+    
+    return ya, yb, xa, xb, True
+
+
+def paste_crop_to_original(crop_pred_tensor, original_h, original_w, coords):
+    """
+    Crop된 예측 결과를 원본 사이즈 캔버스에 복원
+    
+    Args:
+        crop_pred_tensor: (C, H_crop, W_crop) crop된 예측 결과
+        original_h: 원본 이미지 높이
+        original_w: 원본 이미지 너비
+        coords: (ya, yb, xa, xb) crop 좌표
+    
+    Returns:
+        full_canvas: (C, original_h, original_w) 원본 크기의 예측 결과
+    """
+    ya, yb, xa, xb = coords
+    target_h, target_w = yb - ya, xb - xa
+    C = crop_pred_tensor.shape[0]
+    device = crop_pred_tensor.device
+    
+    full_canvas = torch.zeros((C, original_h, original_w), device=device, dtype=crop_pred_tensor.dtype)
+    
+    if target_h > 0 and target_w > 0:
+        # Crop 예측을 원본 크기의 해당 영역 크기로 resize
+        resized_crop = F.interpolate(
+            crop_pred_tensor.unsqueeze(0),  # (1, C, H_crop, W_crop)
+            size=(target_h, target_w),
+            mode='bilinear',
+            align_corners=False
+        ).squeeze(0)  # (C, target_h, target_w)
+        
+        full_canvas[:, ya:yb, xa:xb] = resized_crop
+    
+    return full_canvas
 
 # mask map으로 나오는 인퍼런스 결과를 RLE로 인코딩 합니다.
 def encode_mask_to_rle(mask):
@@ -129,6 +208,7 @@ def load_model(model_path, device, use_tta=False, model_config=None, for_validat
         if use_tta:
             transforms = tta.Compose([
                 HorizontalFlip(),
+                # Multiply(factors=[0.95, 1.05]),
             ])
             tta_model = tta.SegmentationTTAWrapper(
                 model,
@@ -146,6 +226,7 @@ def load_model(model_path, device, use_tta=False, model_config=None, for_validat
         if use_tta:
             transforms = tta.Compose([
                 HorizontalFlip(),
+                # Multiply(factors=[0.95, 1.05]),
             ])
             tta_model = tta.SegmentationTTAWrapper(
                 model_wrapper,
@@ -230,10 +311,106 @@ def ensemble_inference(args, data_loaders, class_thresholds=None):
                 
                 # 각 모델로 추론 (각 모델은 자신의 데이터로더의 배치 사용)
                 model_outputs = []
-                for model, images in zip(models, batch_data):
-                    outputs = model(images)  # (B, C, 2048, 2048) - logit space
-                    outputs = torch.sigmoid(outputs)  # sigmoid 적용
-                    model_outputs.append(outputs)
+                
+                # Crop 모드일 때 처리
+                if args.crop_mode and args.crop_model_idx is not None and args.crop_model_idx < len(models):
+                    crop_model_idx = args.crop_model_idx
+                    full_model_indices = [i for i in range(len(models)) if i != crop_model_idx]
+                    
+                    # Full 모델들로 먼저 예측 (wrist ROI 추출용)
+                    full_outputs_list = []
+                    for i in full_model_indices:
+                        outputs = models[i](batch_data[i])
+                        outputs = torch.sigmoid(outputs)
+                        full_outputs_list.append(outputs)
+                    
+                    # Full 모델들의 평균으로 wrist ROI 추출 (또는 첫 번째 full 모델 사용)
+                    if len(full_outputs_list) > 0:
+                        full_pred = torch.mean(torch.stack(full_outputs_list), dim=0)  # (B, C, H, W)
+                    else:
+                        full_pred = None
+                    
+                    # 배치 내 각 이미지에 대해 crop 처리
+                    batch_size = batch_data[0].shape[0]
+                    crop_outputs_list = []
+                    
+                    for b in range(batch_size):
+                        # 원본 이미지 읽기
+                        image_name = image_names[b]
+                        image_path = osp.join(args.image_root, image_name)
+                        ori_img = cv2.imread(image_path)
+                        if ori_img is None:
+                            # 이미지 읽기 실패 시 full 모델 예측 사용
+                            crop_outputs_list.append(full_pred[b:b+1])
+                            continue
+                        
+                        ori_img = cv2.cvtColor(ori_img, cv2.COLOR_BGR2RGB)
+                        ori_h, ori_w = ori_img.shape[:2]
+                        
+                        # 예측 크기 (2048x2048로 interpolate된 크기)
+                        pred_h, pred_w = full_pred.shape[2], full_pred.shape[3]
+                        
+                        # Wrist ROI 좌표 추출 (예측 크기 기준)
+                        ya_pred, yb_pred, xa_pred, xb_pred, found = get_wrist_roi_coords(
+                            full_pred[b], pred_h, pred_w, margin_frac=0.15, threshold=0.5
+                        )
+                        
+                        if found:
+                            # 예측 크기 좌표를 원본 크기로 스케일링
+                            scale_h = ori_h / pred_h
+                            scale_w = ori_w / pred_w
+                            ya = int(ya_pred * scale_h)
+                            yb = int(yb_pred * scale_h)
+                            xa = int(xa_pred * scale_w)
+                            xb = int(xb_pred * scale_w)
+                            
+                            # 경계 체크
+                            ya = max(0, min(ya, ori_h))
+                            yb = max(0, min(yb, ori_h))
+                            xa = max(0, min(xa, ori_w))
+                            xb = max(0, min(xb, ori_w))
+                            
+                            # Crop
+                            crop_img = ori_img[ya:yb, xa:xb]
+                            
+                            if crop_img.size > 0:
+                                # Crop 이미지 전처리 (crop 모델의 resize 크기 사용)
+                                # data_loaders에서 crop 모델의 resize 크기 가져오기
+                                crop_resize = data_loaders[crop_model_idx].dataset.transforms.transforms[0].height if hasattr(data_loaders[crop_model_idx].dataset.transforms, 'transforms') and len(data_loaders[crop_model_idx].dataset.transforms.transforms) > 0 else 1024
+                                crop_tf = A.Compose([
+                                    A.Resize(crop_resize, crop_resize),
+                                    A.Normalize(),
+                                ])
+                                crop_transformed = crop_tf(image=crop_img)['image']
+                                crop_tensor = torch.from_numpy(crop_transformed.transpose(2, 0, 1)).float().unsqueeze(0).to(device)
+                                
+                                # Crop 모델로 예측
+                                crop_output = models[crop_model_idx](crop_tensor)
+                                crop_output = torch.sigmoid(crop_output).squeeze(0)  # (C, H_crop, W_crop)
+                                
+                                # 예측 크기 좌표로 복원 (나중에 interpolate로 원본 크기로 변환됨)
+                                crop_output_full = paste_crop_to_original(crop_output, pred_h, pred_w, (ya_pred, yb_pred, xa_pred, xb_pred))
+                                crop_outputs_list.append(crop_output_full.unsqueeze(0))
+                            else:
+                                # Crop 실패 시 full 모델 예측 사용
+                                crop_outputs_list.append(full_pred[b:b+1])
+                        else:
+                            # Wrist ROI를 찾지 못한 경우 full 모델 예측 사용
+                            crop_outputs_list.append(full_pred[b:b+1])
+                    
+                    # Crop 모델 출력을 배치로 합치기
+                    crop_outputs = torch.cat(crop_outputs_list, dim=0)  # (B, C, H, W)
+                    model_outputs.append(crop_outputs)
+                    
+                    # Full 모델 출력도 추가
+                    for i, full_out in enumerate(full_outputs_list):
+                        model_outputs.insert(full_model_indices[i], full_out)
+                else:
+                    # 일반 모드: 모든 모델에 동일한 이미지 입력
+                    for model, images in zip(models, batch_data):
+                        outputs = model(images)  # (B, C, 2048, 2048) - logit space
+                        outputs = torch.sigmoid(outputs)  # sigmoid 적용
+                        model_outputs.append(outputs)
                 
                 # 가중 평균으로 앙상블 (클래스별 선택적 앙상블 지원)
                 if args.crop_model_idx is not None and args.crop_model_idx < len(models):
@@ -409,27 +586,127 @@ def ensemble_validate(args, data_loaders, val_loader, class_thresholds=None):
                 
                 # 각 모델로 추론 (validate.py와 동일한 방식)
                 model_outputs = []
-                for i, (model, model_images) in enumerate(zip(models, batch_data)):
-                    # validate.py와 동일: 모델 직접 호출 -> unwrap_for_infer -> interpolate -> sigmoid
-                    outputs = model(model_images)
+                
+                # Crop 모드일 때 처리
+                if args.crop_mode and args.crop_model_idx is not None and args.crop_model_idx < len(models):
+                    crop_model_idx = args.crop_model_idx
+                    full_model_indices = [i for i in range(len(models)) if i != crop_model_idx]
                     
-                    # 디버깅: 첫 번째 배치에서 각 모델 출력 크기 확인
-                    if batch_idx == 0:
-                        print(f"[Debug] Model {i+1} raw output shape: {outputs.shape}")
+                    # Full 모델들로 먼저 예측 (wrist ROI 추출용)
+                    full_outputs_list = []
+                    for i in full_model_indices:
+                        outputs = models[i](batch_data[i])
+                        outputs = unwrap_for_infer(outputs)
+                        outputs = F.interpolate(outputs, size=labels.shape[-2:], mode="bilinear", align_corners=False)
+                        outputs = torch.sigmoid(outputs)
+                        full_outputs_list.append(outputs)
                     
-                    # DeepSup 등 처리
-                    outputs = unwrap_for_infer(outputs)
+                    # Full 모델들의 평균으로 wrist ROI 추출
+                    if len(full_outputs_list) > 0:
+                        full_pred = torch.mean(torch.stack(full_outputs_list), dim=0)  # (B, C, H, W)
+                    else:
+                        full_pred = None
                     
-                    # validate.py와 동일: label 크기로 interpolate
-                    outputs = F.interpolate(outputs, size=labels.shape[-2:], mode="bilinear", align_corners=False)
+                    # 배치 내 각 이미지에 대해 crop 처리
+                    batch_size = batch_data[0].shape[0]
+                    crop_outputs_list = []
                     
-                    # sigmoid 적용
-                    outputs = torch.sigmoid(outputs)
-                    model_outputs.append(outputs)
+                    for b in range(batch_size):
+                        # 원본 이미지 읽기
+                        image_name = model_image_names_list[0][b]  # 첫 번째 데이터로더의 이미지 이름 사용
+                        image_path = osp.join(args.image_root, image_name)
+                        ori_img = cv2.imread(image_path)
+                        if ori_img is None:
+                            # 이미지 읽기 실패 시 full 모델 예측 사용
+                            crop_outputs_list.append(full_pred[b:b+1])
+                            continue
+                        
+                        ori_img = cv2.cvtColor(ori_img, cv2.COLOR_BGR2RGB)
+                        ori_h, ori_w = ori_img.shape[:2]
+                        
+                        # 예측 크기 (label 크기와 동일)
+                        pred_h, pred_w = labels.shape[2], labels.shape[3]
+                        
+                        # Wrist ROI 좌표 추출 (예측 크기 기준)
+                        ya_pred, yb_pred, xa_pred, xb_pred, found = get_wrist_roi_coords(
+                            full_pred[b], pred_h, pred_w, margin_frac=0.15, threshold=0.5
+                        )
+                        
+                        if found:
+                            # 예측 크기 좌표를 원본 크기로 스케일링
+                            scale_h = ori_h / pred_h
+                            scale_w = ori_w / pred_w
+                            ya = int(ya_pred * scale_h)
+                            yb = int(yb_pred * scale_h)
+                            xa = int(xa_pred * scale_w)
+                            xb = int(xb_pred * scale_w)
+                            
+                            # 경계 체크
+                            ya = max(0, min(ya, ori_h))
+                            yb = max(0, min(yb, ori_h))
+                            xa = max(0, min(xa, ori_w))
+                            xb = max(0, min(xb, ori_w))
+                            
+                            # Crop
+                            crop_img = ori_img[ya:yb, xa:xb]
+                            
+                            if crop_img.size > 0:
+                                # Crop 이미지 전처리 (crop 모델의 resize 크기 사용)
+                                crop_resize = data_loaders[crop_model_idx].dataset.transforms.transforms[0].height if hasattr(data_loaders[crop_model_idx].dataset.transforms, 'transforms') and len(data_loaders[crop_model_idx].dataset.transforms.transforms) > 0 else 1024
+                                crop_tf = A.Compose([
+                                    A.Resize(crop_resize, crop_resize),
+                                    A.Normalize(),
+                                ])
+                                crop_transformed = crop_tf(image=crop_img)['image']
+                                crop_tensor = torch.from_numpy(crop_transformed.transpose(2, 0, 1)).float().unsqueeze(0).to(device)
+                                
+                                # Crop 모델로 예측
+                                crop_output = models[crop_model_idx](crop_tensor)
+                                crop_output = unwrap_for_infer(crop_output)
+                                # Label 크기로 interpolate
+                                crop_output = F.interpolate(crop_output, size=(pred_h, pred_w), mode="bilinear", align_corners=False)
+                                crop_output = torch.sigmoid(crop_output).squeeze(0)  # (C, H, W)
+                                
+                                # 예측 크기 좌표로 복원
+                                crop_output_full = paste_crop_to_original(crop_output, pred_h, pred_w, (ya_pred, yb_pred, xa_pred, xb_pred))
+                                crop_outputs_list.append(crop_output_full.unsqueeze(0))
+                            else:
+                                # Crop 실패 시 full 모델 예측 사용
+                                crop_outputs_list.append(full_pred[b:b+1])
+                        else:
+                            # Wrist ROI를 찾지 못한 경우 full 모델 예측 사용
+                            crop_outputs_list.append(full_pred[b:b+1])
                     
-                    # 디버깅: 첫 번째 배치에서 최종 출력 크기 확인
-                    if batch_idx == 0:
-                        print(f"[Debug] Model {i+1} final output shape (after interpolate & sigmoid): {outputs.shape}")
+                    # Crop 모델 출력을 배치로 합치기
+                    crop_outputs = torch.cat(crop_outputs_list, dim=0)  # (B, C, H, W)
+                    model_outputs.append(crop_outputs)
+                    
+                    # Full 모델 출력도 추가
+                    for i, full_out in enumerate(full_outputs_list):
+                        model_outputs.insert(full_model_indices[i], full_out)
+                else:
+                    # 일반 모드: 모든 모델에 동일한 이미지 입력
+                    for i, (model, model_images) in enumerate(zip(models, batch_data)):
+                        # validate.py와 동일: 모델 직접 호출 -> unwrap_for_infer -> interpolate -> sigmoid
+                        outputs = model(model_images)
+                        
+                        # 디버깅: 첫 번째 배치에서 각 모델 출력 크기 확인
+                        if batch_idx == 0:
+                            print(f"[Debug] Model {i+1} raw output shape: {outputs.shape}")
+                        
+                        # DeepSup 등 처리
+                        outputs = unwrap_for_infer(outputs)
+                        
+                        # validate.py와 동일: label 크기로 interpolate
+                        outputs = F.interpolate(outputs, size=labels.shape[-2:], mode="bilinear", align_corners=False)
+                        
+                        # sigmoid 적용
+                        outputs = torch.sigmoid(outputs)
+                        model_outputs.append(outputs)
+                        
+                        # 디버깅: 첫 번째 배치에서 최종 출력 크기 확인
+                        if batch_idx == 0:
+                            print(f"[Debug] Model {i+1} final output shape (after interpolate & sigmoid): {outputs.shape}")
                 
                 # 가중 평균으로 앙상블 (클래스별 선택적 앙상블 지원)
                 if args.crop_model_idx is not None and args.crop_model_idx < len(models):
@@ -439,16 +716,37 @@ def ensemble_validate(args, data_loaders, val_loader, class_thresholds=None):
                     full_model_indices = [i for i in range(len(models)) if i != crop_model_idx]
                     
                     # Wrist class 인덱스 계산
-                    wrist_indices = [CLASSES.index(c) for c in WRIST_CLASSES if c in CLASSES]
+                    wrist_indices = WRIST_INDICES
                     
                     if weights is not None:
                         # Full 모델들의 가중치 합 계산
                         full_weights_sum = sum(weights[i] for i in full_model_indices)
+                        crop_weight = weights[crop_model_idx]
+                        
+                        # Full 모델들의 예측을 평균 (wrist ROI 추출용이었던 것)
+                        if len(full_model_indices) > 0:
+                            full_pred_avg = torch.mean(torch.stack([model_outputs[i] for i in full_model_indices]), dim=0)
+                        else:
+                            full_pred_avg = None
                         
                         for c in range(ensemble_outputs.shape[1]):  # 각 클래스별로
                             if c in wrist_indices:
-                                # Wrist class: crop 모델만 사용
-                                ensemble_outputs[:, c, :, :] = model_outputs[crop_model_idx][:, c, :, :]
+                                # Wrist class: crop 모드일 때는 weighted ensemble, 아닐 때는 crop 모델만
+                                if args.crop_mode and full_pred_avg is not None:
+                                    # Crop 모드: full 모델과 crop 모델 weighted ensemble
+                                    full_part = full_pred_avg[:, c, :, :]
+                                    crop_part = model_outputs[crop_model_idx][:, c, :, :]
+                                    # 가중치 정규화 (full + crop = 1.0)
+                                    total_weight = full_weights_sum + crop_weight
+                                    if total_weight > 0:
+                                        w_full = full_weights_sum / total_weight
+                                        w_crop = crop_weight / total_weight
+                                        ensemble_outputs[:, c, :, :] = w_full * full_part + w_crop * crop_part
+                                    else:
+                                        ensemble_outputs[:, c, :, :] = (full_part + crop_part) / 2.0
+                                else:
+                                    # 일반 모드: crop 모델만 사용
+                                    ensemble_outputs[:, c, :, :] = model_outputs[crop_model_idx][:, c, :, :]
                             else:
                                 # 나머지 클래스: full 모델들만 앙상블 (가중치 정규화)
                                 if full_weights_sum > 0:
@@ -461,10 +759,22 @@ def ensemble_validate(args, data_loaders, val_loader, class_thresholds=None):
                                     ensemble_outputs[:, c, :, :] = torch.mean(full_outputs, dim=0)
                     else:
                         # 단순 평균 버전
+                        if len(full_model_indices) > 0:
+                            full_pred_avg = torch.mean(torch.stack([model_outputs[i] for i in full_model_indices]), dim=0)
+                        else:
+                            full_pred_avg = None
+                        
                         for c in range(ensemble_outputs.shape[1]):
                             if c in wrist_indices:
-                                # Wrist class: crop 모델만 사용
-                                ensemble_outputs[:, c, :, :] = model_outputs[crop_model_idx][:, c, :, :]
+                                # Wrist class: crop 모드일 때는 weighted ensemble, 아닐 때는 crop 모델만
+                                if args.crop_mode and full_pred_avg is not None:
+                                    # Crop 모드: full 모델과 crop 모델 평균
+                                    full_part = full_pred_avg[:, c, :, :]
+                                    crop_part = model_outputs[crop_model_idx][:, c, :, :]
+                                    ensemble_outputs[:, c, :, :] = (full_part + crop_part) / 2.0
+                                else:
+                                    # 일반 모드: crop 모델만 사용
+                                    ensemble_outputs[:, c, :, :] = model_outputs[crop_model_idx][:, c, :, :]
                             else:
                                 # 나머지 클래스: full 모델들만 평균
                                 full_outputs = torch.stack([model_outputs[i][:, c, :, :] for i in full_model_indices])
@@ -555,6 +865,7 @@ if __name__ == "__main__":
     parser.add_argument("--val_fold", type=int, default=0, help="Validation fold number (0-4, for --validate)")
     parser.add_argument("--log_file", type=str, default=None, help="Path to save validation log file (optional)")
     parser.add_argument("--crop_model_idx", type=int, default=None, help="Index of crop-trained model in models list (for wrist classes only). If None, use normal ensemble for all classes.")
+    parser.add_argument("--crop_mode", action="store_true", help="Use crop mode: crop model receives cropped images instead of full images. Requires crop_model_idx to be set.")
     args = parser.parse_args()
     
     # model_configs JSON 파일 로드
@@ -673,10 +984,10 @@ if __name__ == "__main__":
         
         for class_name in CLASSES:
             dice_score = dices_per_class[class_name]
-            result_lines.append(f"{class_name:20s}: {dice_score:.4f}")
+            result_lines.append(f"{class_name:20s}: {dice_score:.6f}")
         
         result_lines.append("-" * 50)
-        result_lines.append(f"Average Dice Score: {avg_dice:.4f}")
+        result_lines.append(f"Average Dice Score: {avg_dice:.6f}")
         result_lines.append("="*50)
         
         # 터미널에 출력

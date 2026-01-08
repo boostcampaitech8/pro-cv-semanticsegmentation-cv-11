@@ -54,6 +54,53 @@ def setup(cfg):
         if osp.splitext(fname)[1].lower() == ".json"
     }
 
+    # Pseudo-label 지원: test set의 pseudo-label이 있으면 추가
+    pseudo_label_root = cfg.get('pseudo_label_root', None)
+    if pseudo_label_root and osp.exists(pseudo_label_root):
+        # Test set 이미지 경로 (pseudo-label과 매칭)
+        test_image_root = cfg.get('test_image_root', '/data/ephemeral/home/dataset/test/DCM')
+        
+        # Test set 이미지 파일명 수집
+        test_fnames = {
+            osp.relpath(osp.join(root, fname), start=test_image_root)
+            for root, _, files in os.walk(test_image_root)
+            for fname in files
+            if osp.splitext(fname)[1].lower() == ".png"
+        }
+        
+        # Pseudo-label 파일명 수집
+        pseudo_labels = {
+            osp.relpath(osp.join(root, fname), start=pseudo_label_root)
+            for root, _, files in os.walk(pseudo_label_root)
+            for fname in files
+            if osp.splitext(fname)[1].lower() == ".json"
+        }
+        
+        # 이미지와 label 매칭 (확장자 제거 후 비교)
+        test_fnames_list = []
+        test_labels_list = []
+        for test_fname in test_fnames:
+            test_fname_no_ext = osp.splitext(test_fname)[0]
+            # 대응하는 pseudo-label 찾기
+            for pseudo_label in pseudo_labels:
+                pseudo_label_no_ext = osp.splitext(pseudo_label)[0]
+                if test_fname_no_ext == pseudo_label_no_ext:
+                    test_fnames_list.append(test_fname)
+                    test_labels_list.append(pseudo_label)
+                    break
+        
+        if test_fnames_list:
+            print(f"[Pseudo-label] Found {len(test_fnames_list)} pseudo-labels from test set")
+            # Train set과 합치기
+            fnames = list(fnames) + test_fnames_list
+            labels = list(labels) + test_labels_list
+            print(f"[Pseudo-label] Total dataset size: {len(fnames)} (train: {len(fnames) - len(test_fnames_list)}, pseudo: {len(test_fnames_list)})")
+        else:
+            print(f"[Pseudo-label] Warning: No matching pseudo-labels found in {pseudo_label_root}")
+    else:
+        if pseudo_label_root:
+            print(f"[Pseudo-label] Warning: Pseudo-label root not found: {pseudo_label_root}")
+
     return np.array(sorted(fnames)), np.array(sorted(labels))
 
 
@@ -68,15 +115,76 @@ def main(cfg):
     
     val_transform = [getattr(A, aug)(**params) 
                                          for aug, params in cfg.val_transform.items()]
-
-    # Train dataset (원본)
-    train_dataset_full = XRayDataset(fnames,
-                                     labels,
-                                     cfg.image_root,
-                                     cfg.label_root,
-                                     fold=cfg.val_fold,
-                                     transforms=train_transforms,
-                                     is_train=True)
+    
+    # Pseudo-label 사용 시 test set 이미지 경로 처리
+    pseudo_label_root = cfg.get('pseudo_label_root', None)
+    test_image_root = cfg.get('test_image_root', None)
+    
+    # Test set 이미지와 pseudo-label이 있으면 별도 데이터셋 생성
+    if pseudo_label_root and test_image_root and osp.exists(pseudo_label_root) and osp.exists(test_image_root):
+        # Train set과 test set 분리
+        train_fnames = []
+        train_labels = []
+        test_fnames = []
+        test_labels = []
+        
+        for fname, label in zip(fnames, labels):
+            # Test set 이미지인지 확인 (test_image_root에 있는지)
+            test_image_path = osp.join(test_image_root, fname)
+            if osp.exists(test_image_path):
+                test_fnames.append(fname)
+                test_labels.append(label)
+            else:
+                train_fnames.append(fname)
+                train_labels.append(label)
+        
+        if test_fnames:
+            print(f"[Pseudo-label] Splitting dataset: train={len(train_fnames)}, test (pseudo)={len(test_fnames)}")
+            # Train set과 test set을 별도 데이터셋으로 생성 후 합치기
+            train_fnames = np.array(train_fnames)
+            train_labels = np.array(train_labels)
+            test_fnames = np.array(test_fnames)
+            test_labels = np.array(test_labels)
+            
+            # Train dataset (원본 train set)
+            train_dataset_train = XRayDataset(train_fnames,
+                                             train_labels,
+                                             cfg.image_root,
+                                             cfg.label_root,
+                                             fold=cfg.val_fold,
+                                             transforms=train_transforms,
+                                             is_train=True)
+            
+            # Test dataset (pseudo-label)
+            train_dataset_test = XRayDataset(test_fnames,
+                                            test_labels,
+                                            test_image_root,  # test set 이미지 경로
+                                            pseudo_label_root,  # pseudo-label 경로
+                                            fold=None,  # test set은 fold 분할 없음
+                                            transforms=train_transforms,
+                                            is_train=True)
+            
+            # 두 데이터셋 합치기
+            train_dataset_full = ConcatDataset([train_dataset_train, train_dataset_test])
+            print(f"[Pseudo-label] Combined train dataset size: {len(train_dataset_full)}")
+        else:
+            # Test set이 없으면 기존 방식 사용
+            train_dataset_full = XRayDataset(fnames,
+                                             labels,
+                                             cfg.image_root,
+                                             cfg.label_root,
+                                             fold=cfg.val_fold,
+                                             transforms=train_transforms,
+                                             is_train=True)
+    else:
+        # Train dataset (원본)
+        train_dataset_full = XRayDataset(fnames,
+                                         labels,
+                                         cfg.image_root,
+                                         cfg.label_root,
+                                         fold=cfg.val_fold,
+                                         transforms=train_transforms,
+                                         is_train=True)
     
     # Wrist crop 옵션 확인
     wrist_crop_config = cfg.get('wrist_crop', {})

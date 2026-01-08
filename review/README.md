@@ -1,4 +1,4 @@
-# 코드리뷰1_CV11_Accumulation_Step_AMP 구현
+# 코드리뷰1_CV11_Accumulation_Step_AMP 효율성
 
 
 ##  해당 기능에 대한 설명

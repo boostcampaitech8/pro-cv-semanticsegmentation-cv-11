@@ -8,12 +8,12 @@
 # ============================================================================
 # 변수 설정 (여기서 수정하세요)
 # ============================================================================
-MODEL_PATH="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/ens_candidates/148_segformer_b5_test-best_38epoch_0.9710.pt"
+MODEL_PATH="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/ens_candidates/156_best_24epoch_0.9780.pt"
 IMAGE_ROOT="/data/ephemeral/home/dataset/test/DCM"
 OUTPUT_DIR="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/outputs/ens_candidates"
 THR=0.5
 THR_DICT="/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/scripts/basic_runners/class_thresholds/class_thresholds_hard.json"
-RESIZE=1024
+RESIZE=2048
 BATCH_SIZE=4
 
 # 출력 파일명 (모델명에서 자동 추출하거나 직접 지정)

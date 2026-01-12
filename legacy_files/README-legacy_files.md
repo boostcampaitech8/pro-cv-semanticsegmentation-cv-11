@@ -8,9 +8,13 @@
 legacy_files/
 ├── legacy_code/              # 레거시 코드 파일들
 ├── legacy_EDM/              # EDM 관련 레거시 파일들
+├── legacy_ensemble/          # 레거시 앙상블 관련 파일들
 ├── legacy_inital_test_files/ # 초기 테스트 파일들
+├── legacy_others/            # 기타 레거시 파일들
+├── legacy_personal_files/    # 개인별 레거시 파일들
 ├── legacy_runners/           # 레거시 실행 스크립트들
 ├── legacy_scripts/           # 레거시 스크립트들
+├── legecy_validate/          # 레거시 validation 관련 파일들
 ├── loss_for_class_weight_backup/ # 클래스 가중치 관련 백업 파일들
 └── README-legacy_files.md    # 이 파일
 ```

@@ -6,9 +6,12 @@
 
 ```
 scripts/
+├── custom_runners/          # 커스텀 실행 스크립트들
+│
 ├── ensemble/                # 앙상블 관련 스크립트
 │   ├── ensemble.py
 │   ├── ensemble.sh
+│   ├── model_configs.json
 │   └── README-ensemble.md
 │
 ├── k_fold_makers/           # K-Fold 교차 검증 데이터 분할
@@ -27,11 +30,15 @@ scripts/
 
 ## 하위 폴더 설명
 
+### custom_runners/
+커스텀 실행 스크립트들을 관리하는 폴더입니다.
+
 ### ensemble/
 여러 모델의 예측 결과를 앙상블하여 최종 결과를 생성하는 스크립트들입니다.
 - 1-step 앙상블: 여러 모델을 동시에 로드하여 배치 단위로 앙상블
 - 가중 평균 지원
 - TTA (Test Time Augmentation) 지원
+- 모델 구조 정보 JSON 파일 지원 (state_dict 모델용)
 
 자세한 내용은 `scripts/ensemble/README-ensemble.md`를 참고하세요.
 

@@ -17,7 +17,7 @@ IMAGE_ROOT="/data/ephemeral/home/dataset/train/DCM"
 LABEL_ROOT="/data/ephemeral/home/dataset/train/outputs_json"
 
 # Python 스크립트 경로
-VALIDATE_SCRIPT="/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/validate_ensemble.py"
+VALIDATE_SCRIPT="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/validate_ensemble.py"
 
 # ============================================================================
 # Validation 실행

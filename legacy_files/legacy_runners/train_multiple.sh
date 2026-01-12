@@ -4,7 +4,7 @@
 # 사용법: ./scripts/train_multiple.sh
 
 # 프로젝트 루트 디렉토리
-PROJECT_ROOT="/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11"
+PROJECT_ROOT="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11"
 cd $PROJECT_ROOT
 
 # 학습할 config 파일 목록 (순서대로 실행)

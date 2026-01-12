@@ -19,7 +19,7 @@ LABEL_ROOT="/data/ephemeral/home/dataset/fold0/val/outputs_json"
 # Threshold 설정
 THR=0.5
 THR_DICT=""  # 클래스별 threshold 사용 시 경로 지정
-# THR_DICT="/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/configs/class_thresholds/class_thresholds_hard.json"
+# THR_DICT="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/configs/class_thresholds/class_thresholds_hard.json"
 
 # 기타 설정
 RESIZE=1024
@@ -31,7 +31,7 @@ USE_TTA=false
 # USE_TTA=true
 
 # Python 스크립트 경로
-VALIDATE_SCRIPT="/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/validate.py"
+VALIDATE_SCRIPT="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/validate.py"
 
 # ============================================================================
 # Validation 실행

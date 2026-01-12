@@ -14,7 +14,7 @@ import ttach as tta
 from ttach import HorizontalFlip
 
 # 프로젝트 루트를 path에 추가
-sys.path.append('/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11')
+sys.path.append('/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11')
 from dataset import XRayInferenceDataset
 
 def unwrap_for_infer(out):

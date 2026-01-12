@@ -2,7 +2,7 @@
 # Based on mmsegmentation/configs/_base_/models/ocrnet_hr18.py with W48 modifications
 
 ### 출처 ###
-# /data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/mmsegmentation/configs/_base_/models/ocrnet_hr18.py
+# /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/mmsegmentation/configs/_base_/models/ocrnet_hr18.py
 # 에서, 나머진 다 그대로 쓰되, 
 # data_preprocessor만 data_preprocessor = None으로 변경한 것.
 # 그리고 HRNet-W48의 채널 설정 (48, 96, 192, 384)을 적용한 것.

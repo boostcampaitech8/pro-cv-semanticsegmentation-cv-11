@@ -28,7 +28,7 @@ pip install 'numpy<2.0'
 python train.py --config configs/hrnet_w18_config.yaml
 
 # inference
-/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/configs/mmseg/hrnet_inference.sh 를 실행.
+./inference.sh  # 또는 inference.sh 스크립트를 수정하여 사용
 ```
 
 ## 모델 구조
@@ -64,7 +64,7 @@ HRNet config 파일은 다른 모델들과 동일한 구조를 따릅니다:
 ```yaml
 model_name: HRNet
 model_parameter:
-  config_path: configs/mmseg/hrnet_w18_fcn.py  # 또는 hrnet_w48_fcn.py
+  config_path: configs/mmseg_config_py_files/hrnet_w18_fcn.py  # 또는 hrnet_w48_fcn.py
   num_classes: 29
   # pretrained: 'open-mmlab://msra/hrnetv2_w18'  # 선택사항
 ```
@@ -77,10 +77,12 @@ model_parameter:
 
 ### 4. Config 파일 위치
 
-mmsegmentation config 파일들은 `configs/mmseg/` 폴더에 있습니다:
+mmsegmentation config 파일들은 `configs/mmseg_config_py_files/` 폴더에 있습니다:
 
-- `configs/mmseg/hrnet_w18_fcn.py`: HRNet-W18 FCN 설정
-- `configs/mmseg/hrnet_w48_fcn.py`: HRNet-W48 FCN 설정
+- `configs/mmseg_config_py_files/hrnet_w18_fcn.py`: HRNet-W18 FCN 설정
+- `configs/mmseg_config_py_files/hrnet_w18_ocr.py`: HRNet-W18 OCR 설정
+- `configs/mmseg_config_py_files/hrnet_w48_fcn.py`: HRNet-W48 FCN 설정
+- `configs/mmseg_config_py_files/hrnet_w48_ocr.py`: HRNet-W48 OCR 설정
 
 이 파일들은 mmsegmentation의 원본 config를 기반으로 하되, 프로젝트의 데이터 전처리 파이프라인과 호환되도록 수정되었습니다.
 

@@ -10,14 +10,14 @@
 # ============================================================================
 
 # 프로젝트 루트 디렉토리
-PROJECT_ROOT="/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11"
+PROJECT_ROOT="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11"
 
 # 시각화할 CSV 파일 경로
 CSV_FILE="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/outputs/HRNet_W18/hrnet_w18-bce03_dice07.csv"
 
 ### 주의!!! ###
 ### k-fold maker로 이미 데이터 셋을 분할해서 파일 형태로 저장했어야 아래 스크립트들이 실행 가능합니다. ###
-### /data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/scripts/k_fold_makers/create_kfold_splits.sh를 먼저 실행해 주세요. ###
+### /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/scripts/k_fold_makers/create_kfold_splits.sh를 먼저 실행해 주세요. ###
 
 # 이미지 루트 경로
 IMAGE_ROOT="/data/ephemeral/home/dataset/fold0/val/DCM/"
@@ -33,7 +33,7 @@ ONLY_CLASSES="Pisiform Triquetrum"
 # ONLY_CLASSES=""  # 모든 클래스 시각화
 
 # 저장 디렉토리
-SAVE_ROOT="/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/visual/vis_results"
+SAVE_ROOT="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/visual/vis_results"
 
 # Python 스크립트 경로
 VISUAL_SCRIPT="${PROJECT_ROOT}/visual/visual.py"

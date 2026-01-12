@@ -17,9 +17,10 @@ configs/
 │   ├── hrnet_w18_fcn.py                # HRNet-W18 + FCNHead 설정
 │   ├── hrnet_w18_ocr.py                # HRNet-W18 + OCRHead 설정
 │   ├── hrnet_w48_fcn.py                # HRNet-W48 + FCNHead 설정
-│   └── README_HRNet.md                 # mmseg 라이브러리 및 HRNet 설치&사용 가이드
-├── configs_example/                     # 예시 설정 파일들
-│   └── ...
+│   └── README-HRNet.md                 # mmseg 라이브러리 및 HRNet 설치&사용 가이드
+├── completed/                           # 완료된 설정 파일들
+├── for_test/                            # 테스트용 설정 파일들
+├── personal_configs/                    # 개인별 설정 파일들
 ├── What_is_3_stage_loss_switching.md   # 3-Stage Loss Switching 설명 문서
 └── README-configs.md                   # 이 파일
 ```
@@ -68,9 +69,17 @@ mmsegmentation 라이브러리 전용 설정 파일들을 포함합니다.
 
 - **`hrnet_w48_fcn.py`**: HRNet-W48 + FCNHead 설정
 
-### configs_example/
+### completed/
 
-다양한 실험 설정 예시 파일들을 포함합니다.
+완료된 실험 설정 파일들을 보관합니다.
+
+### for_test/
+
+테스트용 설정 파일들을 포함합니다.
+
+### personal_configs/
+
+개인별 설정 파일들을 관리합니다.
 
 ### What_is_3_stage_loss_switching.md
 
@@ -139,5 +148,7 @@ loss_switch:
 ## 주의사항
 
 - mmseg_config_py_files/의 Python 설정 파일은 mmsegmentation 라이브러리 전용입니다.
-- configs_example/ 폴더의 파일들은 참고용 예시입니다.
+- completed/ 폴더의 파일들은 완료된 실험 설정입니다.
+- for_test/ 폴더의 파일들은 테스트용 설정입니다.
+- personal_configs/ 폴더의 파일들은 개인별 설정 파일입니다.
 - class_thresholds/의 JSON 파일은 추론 시 클래스별 threshold를 적용할 때 사용됩니다.

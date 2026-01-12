@@ -77,7 +77,9 @@ pro-cv-semanticsegmentation-cv-11/
 ├── configs/                  # 설정 파일들
 │   ├── *.yaml                # 모델별 학습 설정
 │   ├── mmseg_config_py_files/  # mmsegmentation 설정
-│   └── class_thresholds/      # 클래스별 threshold 설정
+│   ├── class_thresholds/      # 클래스별 threshold 설정
+│   ├── class_weights/         # 클래스별 가중치 설정
+│   └── personal_configs/      # 개인별 설정 파일들
 │
 ├── models/                   # 모델 아키텍처 정의
 │   ├── hrnet.py              # HRNet 모델
@@ -92,11 +94,13 @@ pro-cv-semanticsegmentation-cv-11/
 ├── scripts/                  # 보조 스크립트들
 │   ├── ensemble/             # 앙상블 관련
 │   ├── k_fold_makers/        # K-Fold 데이터 분할
-│   └── visualizer/           # 결과 시각화
+│   ├── visualizer/           # 결과 시각화
+│   └── custom_runners/        # 커스텀 실행 스크립트들
 │
 ├── optimizers/               # Optimizer 정의
 ├── scheduler/                # Learning Rate Scheduler 정의
 ├── utils/                    # 유틸리티 함수들
+├── docs/                     # 문서 파일들
 └── legacy_files/             # 레거시 파일들 (참고용)
 ```
 

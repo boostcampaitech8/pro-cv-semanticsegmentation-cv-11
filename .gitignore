@@ -1,1 +1,42 @@
 data/*
+
+# lsj
+/lsj/checkpoints/*
+/lsj/wandb/*
+/lsj/txt_csv_file/*
+/lsj/src/.env
+/lsj/src/__pycache__
+
+# jsw
+mmsegmentation/
+segmentation_models.pytorch/
+
+configs/for_test/
+
+scripts/custom_runners/
+scripts/visualizer/vis_results/
+logs/
+
+docs/GIT_WORKFLOW.md
+docs/README_docs.md
+
+# general
+/checkpoints/Baseline/*
+/checkpoints/Baseline/*
+/models/__pycache__
+/loss/__pycache__
+/optimizers/__pycache__
+/scheduler/__pycache__
+/utils/__pycache__
+/utils/.env
+/wandb/*
+/__pycache__
+
+/checkpoints/UNet3plus/*
+/checkpoints/ens_candidates/*
+
+/logs/*
+/unet_results/*
+
+checkpoints/
+outputs/

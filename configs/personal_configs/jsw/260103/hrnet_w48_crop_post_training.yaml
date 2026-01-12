@@ -1,0 +1,140 @@
+# Post training with wrist crop (crop_only mode)
+# 기존 모델 가중치를 불러와서 crop 데이터로 fine-tuning
+# train 640개, val 160개, batch_size train 4, val 4
+
+# data 관련 설정
+image_root: /data/ephemeral/home/dataset/train/DCM
+label_root: /data/ephemeral/home/dataset/train/outputs_json
+
+# 모델명 및 사전 학습 여부
+model_name: HRNet
+model_parameter:
+  config_path: configs/mmseg_config_py_files/hrnet_w48_fcn.py
+  num_classes: 29
+
+# batch_size
+train_batch_size: 4
+val_batch_size: 4
+
+# val_num_worker 지정
+num_workers: 4  
+
+# image resize
+image_size: &image_size 1024
+
+# 손목 crop 설정
+wrist_crop:
+  enabled: True  # crop 사용
+  mode: crop_only  # crop만 사용 (post training용)
+  min_size: 128  # 최소 크기(pixels)
+  margin_frac: 0.15  # margin 비율(0.15 = 15%)
+
+# transform 관련
+train_transform:
+  Resize:
+    width: *image_size
+    height: *image_size
+  ShiftScaleRotate:
+    shift_limit: 0.05
+    scale_limit: 0.05
+    rotate_limit: 5
+    p: 0.5
+  HorizontalFlip:
+    p: 0.5
+  ElasticTransform:
+    alpha: 50
+    sigma: 5
+    alpha_affine: 10
+    p: 0.2
+  CLAHE:
+    clip_limit: 2.0
+    tile_grid_size: [8, 8]
+    p: 0.2
+  RandomBrightnessContrast:
+    brightness_limit: 0.1
+    contrast_limit: 0.1
+    p: 0.2
+
+val_transform:
+  Resize:
+    width: *image_size
+    height: *image_size
+
+# 학습 관련 하이퍼파라미터 (Post training: 낮은 LR)
+lr: 5e-5  # Post training: 기존 1e-3의 1/20 (더 보수적)
+weight_decay: 1e-6
+
+max_epoch: &max_epoch 30  # Post training: 20 epoch (crop only 데이터이므로 보수적)
+
+# loss 관련 설정
+loss_name: Mixed
+
+# combo loss 사용시
+# Stage 1: BCE:Dice = 0.3:0.7
+loss_parameter:
+  losses:
+    - name: BCEWithLogitsLoss
+      weight: 0.3
+      params: {}
+    - name: DiceLoss
+      weight: 0.7
+      params:
+        smooth: 1e-5
+
+# class weights 설정 (선택적)
+# JSON 파일 경로를 지정하면 해당 파일에서 클래스별 가중치를 읽어옵니다.
+# JSON 파일 형식: {"finger-1": 1.0, "Trapezium": 2.0, ...} (29개 클래스)
+# 예시 파일: configs/class_weights/class_weights_wrist_2x.json
+# class_weights_path: configs/class_weights/class_weights_wrist_2x.json
+
+# scheduler 관련 설정
+scheduler_name: CosineAnnealingWarmupRestarts
+
+# scheduler 필요한 parameter -> dict 형태로 작성
+# CosineAnnealingWarmupRestarts 파라미터:
+# - first_cycle_steps: 첫 번째 사이클의 총 스텝 수 (warmup 포함)
+# - warmup_steps: 웜업 스텝 수
+# - max_lr: 최대 learning rate (초기 lr과 동일)
+# - min_lr: 최소 learning rate
+# - cycle_mult: 사이클 배수 (1.0이면 동일한 사이클 반복)
+# - gamma: 감쇠 계수 (0.7이면 각 사이클마다 lr이 70%로 감소)
+# 
+# Post training 설정:
+# - train 640개, batch_size 4, 1 에폭당 160 steps
+# - warmup 1 에폭, 5 에폭 주기로 70% 감소
+# - max_lr: 5e-5 (post training용 낮은 LR)
+scheduler_parameter:
+  warmup_epochs: 1  # 1 에폭 warmup
+  cycle_epochs: 5  # 5 에폭 주기
+  max_lr: 5e-5  # Post training: 낮은 LR (원래의 1/20)
+  min_lr: 1e-8  # 최소 learning rate
+  cycle_mult: 1.0  # 사이클 배수 (1.0이면 동일한 사이클 반복)
+  gamma: 0.7  # 감쇠 계수 (각 사이클마다 lr이 70%로 감소)
+
+# optimizer 관련 설정
+optimizer_name: adamw
+
+# random seed값
+seed: 21
+
+# validation 관련 인자
+val_fold: 0
+val_interval: 1
+threshold: 0.5
+
+# checkpoint 저장 경로
+save_dir: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRNet_W48
+checkpoint_name_format: "hrnet_w48_crop_post_best_{epoch}epoch_{dice_score:.4f}.pt"
+
+# 기존 모델 가중치 로드 (Post training용)
+resume_from: /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/HRNet_W48/hrnet_w48_v1-best_42epoch_0.9723.pt
+
+# wandb
+team_name: cv_11
+project_name: cv-11-SEG
+auto_run_name: true  # 자동으로 run name 생성
+run_name_decoder: fcnhead  # decoder 이름 (run name에 사용)
+run_name_backbone: hrnet_w48  # backbone 이름 (run name에 사용)
+run_name_exp_id: crop_post  # 실험 ID (run name에 사용)
+# experiment_detail: hrnet_w48_crop_post_training  # auto_run_name이 false일 때만 사용
+

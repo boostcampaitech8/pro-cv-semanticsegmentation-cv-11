@@ -1,0 +1,34 @@
+{
+    "Trapezium": 0.40,
+    "Trapezoid": 0.35,
+    "Capitate": 0.45,
+    "Hamate": 0.40,
+    "Scaphoid": 0.45,
+    "Lunate": 0.45,
+    "Triquetrum": 0.45,
+    "Pisiform": 0.35,
+  
+    "finger-1": 0.55,
+    "finger-2": 0.60,
+    "finger-3": 0.60,
+    "finger-4": 0.55,
+    "finger-5": 0.55,
+    "finger-6": 0.60,
+    "finger-7": 0.60,
+    "finger-8": 0.55,
+    "finger-9": 0.55,
+    "finger-10": 0.60,
+    "finger-11": 0.55,
+    "finger-12": 0.55,
+    "finger-13": 0.55,
+    "finger-14": 0.60,
+    "finger-15": 0.60,
+    "finger-16": 0.50,
+    "finger-17": 0.50,
+    "finger-18": 0.60,
+    "finger-19": 0.60,
+  
+    "Radius": 0.65,
+    "Ulna": 0.65
+  }
+  

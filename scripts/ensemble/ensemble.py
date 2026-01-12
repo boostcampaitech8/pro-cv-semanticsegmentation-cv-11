@@ -3,7 +3,7 @@ import sys
 import os.path as osp
 
 # 프로젝트 루트를 path에 추가 (import 전에 실행)
-sys.path.append('/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11')
+sys.path.append('/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11')
 
 import torch
 import argparse

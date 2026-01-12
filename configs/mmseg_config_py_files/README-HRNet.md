@@ -28,7 +28,7 @@ pip install 'numpy<2.0'
 python train.py --config configs/hrnet_w18_config.yaml
 
 # inference
-/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/configs/mmseg/hrnet_inference.sh 를 실행.
+/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/configs/mmseg/hrnet_inference.sh 를 실행.
 ```
 
 ## 모델 구조

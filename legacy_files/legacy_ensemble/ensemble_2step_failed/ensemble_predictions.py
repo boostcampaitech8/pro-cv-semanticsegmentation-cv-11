@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 # 프로젝트 루트를 path에 추가
-sys.path.append('/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11')
+sys.path.append('/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11')
 from dataset import CLASSES
 
 # mask map으로 나오는 인퍼런스 결과를 RLE로 인코딩 합니다.

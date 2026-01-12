@@ -35,3 +35,6 @@ docs/README_docs.md
 
 /logs/*
 /unet_results/*
+
+checkpoints/
+outputs/

@@ -12,7 +12,7 @@ MODEL_PATH="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/e
 IMAGE_ROOT="/data/ephemeral/home/dataset/test/DCM"
 OUTPUT_DIR="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/outputs/ens_candidates"
 THR=0.5
-THR_DICT="/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/scripts/basic_runners/class_thresholds/class_thresholds_hard.json"
+THR_DICT="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/scripts/basic_runners/class_thresholds/class_thresholds_hard.json"
 RESIZE=2048
 BATCH_SIZE=4
 
@@ -27,7 +27,7 @@ MODEL_NAME=$(basename "$MODEL_PATH" .pt)
 OUTPUT_FILE="${OUTPUT_DIR}/${MODEL_NAME}.csv"
 
 # Python 스크립트 경로
-INFERENCE_SCRIPT="/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/inference.py"
+INFERENCE_SCRIPT="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/inference.py"
 
 # ============================================================================
 # 출력 디렉토리 생성

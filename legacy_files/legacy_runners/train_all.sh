@@ -3,7 +3,7 @@
 # 간단한 버전: configs 디렉토리의 모든 yaml 파일로 학습
 # 사용법: ./scripts/train_all.sh
 
-PROJECT_ROOT="/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11"
+PROJECT_ROOT="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11"
 cd $PROJECT_ROOT
 
 # configs 디렉토리의 모든 yaml 파일 찾기 (base_config.yaml 제외)

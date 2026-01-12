@@ -10,7 +10,7 @@
 # ============================================================================
 
 # 프로젝트 루트 디렉토리
-PROJECT_ROOT="/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11"
+PROJECT_ROOT="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11"
 
 # 이미지 루트 경로
 IMAGE_ROOT="/data/ephemeral/home/dataset/train/DCM"

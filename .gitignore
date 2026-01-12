@@ -22,6 +22,7 @@ docs/README_docs.md
 
 # general
 /checkpoints/Baseline/*
+/checkpoints/Baseline/*
 /models/__pycache__
 /loss/__pycache__
 /optimizers/__pycache__
@@ -32,6 +33,7 @@ docs/README_docs.md
 /__pycache__
 
 /checkpoints/UNet3plus/*
+/checkpoints/ens_candidates/*
 
 /logs/*
 /unet_results/*

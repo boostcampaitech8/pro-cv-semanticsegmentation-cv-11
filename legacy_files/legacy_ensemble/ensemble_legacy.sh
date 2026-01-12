@@ -10,7 +10,7 @@
 # ============================================================================
 
 # 프로젝트 루트 디렉토리
-PROJECT_ROOT="/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11"
+PROJECT_ROOT="/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11"
 
 # 앙상블할 모델 경로들 (여러 개 가능)
 MODELS=(

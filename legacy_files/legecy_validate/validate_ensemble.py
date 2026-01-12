@@ -9,7 +9,7 @@ import argparse
 from tqdm.auto import tqdm
 
 # 프로젝트 루트를 path에 추가
-sys.path.append('/data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11')
+sys.path.append('/data/ephemeral/home/pro-cv-semanticsegmentation-cv-11')
 
 from dataset import CLASSES
 

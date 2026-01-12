@@ -6,7 +6,7 @@
 # 출력 디렉토리 생성
 mkdir -p /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/ensemble
 
-python /data/ephemeral/home/jsw_pro-cv-semanticsegmentation-cv-11/scripts/ensemble/ensemble_predictions.py \
+python /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/scripts/ensemble/ensemble_predictions.py \
     --pred_dir /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/ensemble_preds \
     --model_names hrnet_w18_aug_elastic_3_stage-best_28epoch_0.9720 hrnet_w18_unetpp_with_smp_elastic_aug-29epoch_0.9710 \
     --output_dir /data/ephemeral/home/pro-cv-semanticsegmentation-cv-11/checkpoints/ensemble \

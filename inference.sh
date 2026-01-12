@@ -37,25 +37,25 @@ mkdir -p "${OUTPUT_DIR}"
 # ============================================================================
 # 1. 기본 Inference (TTA 없음, 기본 threshold 0.5)
 # ============================================================================
-# python "${INFERENCE_SCRIPT}" \
-#     "${MODEL_PATH}" \
-#     --image_root "${IMAGE_ROOT}" \
-#     --thr "${THR}" \
-#     --output "${OUTPUT_FILE}" \
-#     --resize "${RESIZE}" \
-#     --batch_size "${BATCH_SIZE}"
-
-# ============================================================================
-# 2. TTA 사용 Inference (--use_tta 플래그 사용)
-# ============================================================================
 python "${INFERENCE_SCRIPT}" \
     "${MODEL_PATH}" \
     --image_root "${IMAGE_ROOT}" \
     --thr "${THR}" \
-    --use_tta \
-    --output "${OUTPUT_DIR}/${MODEL_NAME}_tta.csv" \
+    --output "${OUTPUT_FILE}" \
     --resize "${RESIZE}" \
     --batch_size "${BATCH_SIZE}"
+
+# ============================================================================
+# 2. TTA 사용 Inference (--use_tta 플래그 사용)
+# ============================================================================
+# python "${INFERENCE_SCRIPT}" \
+#     "${MODEL_PATH}" \
+#     --image_root "${IMAGE_ROOT}" \
+#     --thr "${THR}" \
+#     --use_tta \
+#     --output "${OUTPUT_DIR}/${MODEL_NAME}_tta.csv" \
+#     --resize "${RESIZE}" \
+#     --batch_size "${BATCH_SIZE}"
 
 # ============================================================================
 # 3. Class-wise Threshold 사용 Inference

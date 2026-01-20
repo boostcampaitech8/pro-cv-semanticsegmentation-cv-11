@@ -57,9 +57,7 @@
 - Team Notion, Waight&Biases, Google Sheets를 통한 실험 관리 및 실시간 공유를 통한 협업 진행
 
 ## Project Result
-<h3 align="center">
-  <a href="https://mature-shark-e53.notion.site/Hand-Bone-Image-Segmentation-Wrap-up-Report-2e3474a0526a8175bcc0c35766f04037?source=copy_link">📄 Wrap-up Report Link</a>
-</h3>
+
 <p align="center"><strong>Public Leaderboard (3/13)</strong></p>
 <p align="center">
   <img src="https://github.com/user-attachments/assets/57f918b8-bc48-4af9-a46d-23c2bafd4d80" alt="Public Leaderboard" width="80%">
@@ -71,6 +69,18 @@
 <p align="center">
   <img src="https://github.com/user-attachments/assets/2a9a73ed-e11a-4806-b257-eabe29c75a0c" alt="Private Leaderboard" width="80%">
 </p>
+
+## Reports & Presentation
+
+<h3 align="center">
+  <a href="https://mature-shark-e53.notion.site/Hand-Bone-Image-Segmentation-Wrap-up-Report-2e3474a0526a8175bcc0c35766f04037?source=copy_link">📝 Wrap-up Report Link</a>
+</h3>
+<h3 align="center">
+  <a href="https://drive.google.com/file/d/1NYI7KgSmPp68QnLgq2kauvwmQoyueVVa/view?usp=sharing">📽️ CV-11 Presentation Slides Link</a>
+</h3>
+<h3 align="center">
+  <a href="https://mature-shark-e53.notion.site/Hand-Bone-Image-Segmentation-Challenge-2e2474a0526a80128b61fcbdbf491eb6?source=copy_link">🤝 Team Notion Link</a>
+</h3>
 
 ## Team Members
 
@@ -166,11 +176,7 @@ pro-cv-semanticsegmentation-cv-11/
 
 
 ## Workflow Summary
-적을예정
-## Reports & Presentation
-- **CV-11 Wrap-up Reports** :
-- **CV-11 Presentation** : 
-- **Team Notion** :
+- temp
 
 ---
 ## 빠른 시작

@@ -1,4 +1,4 @@
-### README.md last modified: 260113
+### README.md last modified: 260120
 
 <div align="center">
   <h2>🦴 Hand Bone Image Segmentation</h2>
@@ -57,7 +57,9 @@
 - Team Notion, Waight&Biases, Google Sheets를 통한 실험 관리 및 실시간 공유를 통한 협업 진행
 
 ## Project Result
-
+<h3 align="center">
+  <a href="https://mature-shark-e53.notion.site/Hand-Bone-Image-Segmentation-Wrap-up-Report-2e3474a0526a8175bcc0c35766f04037?source=copy_link">📄 Wrap-up Report Link</a>
+</h3>
 <p align="center"><strong>Public Leaderboard (3/13)</strong></p>
 <p align="center">
   <img src="https://github.com/user-attachments/assets/57f918b8-bc48-4af9-a46d-23c2bafd4d80" alt="Public Leaderboard" width="80%">

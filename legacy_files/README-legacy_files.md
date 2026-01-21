@@ -1,0 +1,36 @@
+# Legacy Files 폴더
+
+개발 과정에서 사용했던 레거시 파일들을 보관하는 폴더입니다.
+
+## 폴더 구조
+
+```
+legacy_files/
+├── legacy_code/              # 레거시 코드 파일들
+├── legacy_EDM/              # EDM 관련 레거시 파일들
+├── legacy_ensemble/          # 레거시 앙상블 관련 파일들
+├── legacy_inital_test_files/ # 초기 테스트 파일들
+├── legacy_others/            # 기타 레거시 파일들
+├── legacy_personal_files/    # 개인별 레거시 파일들
+├── legacy_runners/           # 레거시 실행 스크립트들
+├── legacy_scripts/           # 레거시 스크립트들
+├── legecy_validate/          # 레거시 validation 관련 파일들
+├── loss_for_class_weight_backup/ # 클래스 가중치 관련 백업 파일들
+└── README-legacy_files.md    # 이 파일
+```
+
+## 설명
+
+이 폴더에는 프로젝트 개발 과정에서 사용되었지만 현재는 최신 버전으로 통합되어 더 이상 사용되지 않는 파일들이 보관되어 있습니다.
+
+### 주요 목적
+
+1. **기록 보관**: 개발 과정의 이력을 보존
+2. **참고 자료**: 필요시 이전 구현 방식을 참고
+3. **버전 관리**: 프로젝트의 진화 과정 추적
+
+## 주의사항
+
+- 이 폴더의 파일들은 **현재 사용되지 않습니다**
+- 최신 구현은 프로젝트 루트의 메인 파일들에서 확인하세요
+- 참고용으로만 사용하시기 바랍니다

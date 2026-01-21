@@ -1,0 +1,42 @@
+# HRNet-W18 with Class Weighted Loss
+# Trapezium, Trapezoid, Pisiform에 높은 weight 적용
+
+# ... (기존 설정들 동일) ...
+
+# loss 관련 설정
+loss_name: Mixed
+
+# combo loss 사용시
+loss_parameter:
+  losses:
+    - name: BCEWithLogitsLoss
+      weight: 0.5
+      params:
+        # pos_weight: 각 클래스별 weight (29개)
+        # CLASSES 순서: finger-1~19, Trapezium(19), Trapezoid(20), Capitate, Hamate, 
+        #               Scaphoid, Lunate, Triquetrum, Pisiform(26), Radius, Ulna
+        # Trapezium(19), Trapezoid(20), Pisiform(26)에 2.0, 나머지 1.0
+        pos_weight: [
+          1.0, 1.0, 1.0, 1.0, 1.0,  # finger-1~5
+          1.0, 1.0, 1.0, 1.0, 1.0,  # finger-6~10
+          1.0, 1.0, 1.0, 1.0, 1.0,  # finger-11~15
+          1.0, 1.0, 1.0, 1.0, 2.0,  # finger-16~19, Trapezium(19)
+          2.0, 1.0, 1.0, 1.0, 1.0,  # Trapezoid(20), Capitate, Hamate, Scaphoid, Lunate
+          1.0, 2.0, 1.0, 1.0         # Triquetrum, Pisiform(26), Radius, Ulna
+        ]
+    - name: DiceLoss
+      weight: 0.5
+      params:
+        smooth: 1e-5
+        # class_weights: 각 클래스별 weight (29개, BCE와 동일한 순서)
+        class_weights: [
+          1.0, 1.0, 1.0, 1.0, 1.0,  # finger-1~5
+          1.0, 1.0, 1.0, 1.0, 1.0,  # finger-6~10
+          1.0, 1.0, 1.0, 1.0, 1.0,  # finger-11~15
+          1.0, 1.0, 1.0, 1.0, 2.0,  # finger-16~19, Trapezium(19)
+          2.0, 1.0, 1.0, 1.0, 1.0,  # Trapezoid(20), Capitate, Hamate, Scaphoid, Lunate
+          1.0, 2.0, 1.0, 1.0         # Triquetrum, Pisiform(26), Radius, Ulna
+        ]
+
+# ... (나머지 설정들 동일) ...
+
